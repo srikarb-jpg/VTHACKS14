@@ -129,7 +129,7 @@ async function ensureModel(): Promise<void> {
       },
       transformersSettings: { allowLocalModels: false, useBrowserCache: true },
       maxWidth: 12,
-      modelType: 'span',
+      modelType: 'span-level',
     });
 
     await instance.initialize();

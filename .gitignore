@@ -7,3 +7,4 @@ dist/
 # ONNX Runtime binaries, copied from node_modules by scripts/sync-ort.
 # ~31MB, reproducible, not worth versioning.
 public/ort/
+.cache/
