@@ -112,13 +112,12 @@ export interface Settings {
    */
   nerEnabled: boolean;
   /**
-   * Auto-redact names and organizations found by the model, not just
-   * highlight them.
+   * Opt in to redacting model-found names WITHOUT confirming each one.
    *
-   * This overrides the spec's design principle 3, which keeps low-precision
-   * detectors out of any action that alters text. The gate below is what
-   * makes it defensible: only findings the model is confident about act on
-   * their own, and the diff makes every substitution reversible.
+   * Off by default, which keeps design principle 3 intact: low-precision
+   * detectors never alter text on their own. By default a name is
+   * highlighted and redacted only once the user clicks to confirm it.
+   * Turning this on trades that safety for fewer clicks.
    */
   autoRedactNames: boolean;
   /** Minimum model confidence for a name to be redacted rather than shown. */

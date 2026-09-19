@@ -158,10 +158,10 @@ async function renderSettings(): Promise<void> {
     ),
     toggle(
       'autoRedactNames',
-      'Auto-redact names',
-      'Replace names and organizations the model is confident about, not just highlight them. ' +
-        'Below the confidence threshold they stay highlight-only. Every substitution is shown ' +
-        'in the diff and can be reverted.',
+      'Replace names without confirming',
+      'Off by default: names found by the model are highlighted, and you click one to mark it ' +
+        'for replacement. Turning this on replaces any name the model is confident about ' +
+        'without asking \u2014 fewer clicks, but the model will occasionally be wrong.',
     ),
     toggle(
       'searchLaneEnabled',

@@ -79,14 +79,28 @@ export function renderHighlights(map: TextMap, findings: LiveFinding[]): void {
           ? `background:${color};opacity:.95;`
           : `background:repeating-linear-gradient(90deg,${color} 0 3px,transparent 3px 6px);opacity:.5;`);
 
+      if (f.confirmed) {
+        // Confirmed: this WILL be replaced on send. Drawn as a filled band
+        // rather than a rule, so it reads as decided rather than suggested.
+        bar.style.cssText =
+          `position:fixed;left:${rect.left}px;top:${rect.top}px;` +
+          `width:${rect.width}px;height:${rect.height}px;border-radius:3px;` +
+          `background:${color};opacity:.22;`;
+      }
+
       if (f.settled) {
-        // Only the 2px underline strip is clickable, and only once settled.
+        // Only the underline strip is interactive, and only once settled.
         // It sits below the text baseline, so it almost never steals a click
         // meant for placing the caret.
         bar.style.pointerEvents = 'auto';
         bar.style.cursor = 'pointer';
-        bar.style.height = '3px';
-        bar.title = `${f.label} — click to redact`;
+        if (!f.confirmed) bar.style.height = '3px';
+        bar.title =
+          f.severity === 'low'
+            ? f.confirmed
+              ? `${f.label} — will be replaced on send. Click to undo.`
+              : `${f.label} — click to replace this on send`
+            : `${f.label} — always replaced automatically`;
         bar.addEventListener('mousedown', (e) => {
           e.preventDefault();
           e.stopPropagation();

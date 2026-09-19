@@ -22,6 +22,13 @@ const SEVERITY_COLOR: Record<string, string> = {
   low: '#9aa1ad',
 };
 
+let onRowPick: ((f: LiveFinding) => void) | null = null;
+
+/** Clicking a row is the same gesture as clicking its underline. */
+export function setLiveHandler(fn: (f: LiveFinding) => void): void {
+  onRowPick = fn;
+}
+
 let panel: HTMLElement | null = null;
 let body: HTMLElement | null = null;
 let statLine: HTMLElement | null = null;
@@ -110,18 +117,36 @@ export function renderLive(findings: LiveFinding[], stats: ScanStats, textLength
 
         const value = f.value.length > 26 ? `${f.value.slice(0, 24)}…` : f.value;
 
-        return el(
+        // Low-tier findings are the ones the user decides on. Everything
+        // above is redacted automatically, so its row is informational.
+        const decidable = f.severity === 'low' && f.settled;
+
+        const state = f.confirmed
+          ? el('span', { style: 'color:#7ee2a8;font-size:11px;' }, '\u2713 replacing')
+          : decidable
+            ? el('span', { class: 'muted', style: 'font-size:10.5px;' }, 'click to replace')
+            : el('span', { class: 'muted', style: 'font-size:10.5px;' },
+                f.settled ? f.label : 'watching\u2026');
+
+        const row = el(
           'div',
           {
             style:
-              'display:flex;align-items:center;gap:7px;' +
-              (f.settled ? '' : 'opacity:.55;'),
+              'display:flex;align-items:center;gap:7px;padding:2px 4px;border-radius:5px;' +
+              (f.settled ? '' : 'opacity:.55;') +
+              (decidable || f.confirmed ? 'cursor:pointer;' : ''),
           },
           dot,
           el('span', { class: 'mono', style: 'flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' }, value),
-          el('span', { class: 'muted', style: 'margin-left:auto;flex:0 0 auto;font-size:10.5px;' },
-            f.settled ? f.label : 'watching…'),
+          el('span', { style: 'margin-left:auto;flex:0 0 auto;' }, state),
         );
+
+        if (decidable || f.confirmed) {
+          row.addEventListener('mouseenter', () => (row.style.background = '#23262e'));
+          row.addEventListener('mouseleave', () => (row.style.background = 'transparent'));
+          row.addEventListener('click', () => onRowPick?.(f));
+        }
+        return row;
       }),
     );
   }

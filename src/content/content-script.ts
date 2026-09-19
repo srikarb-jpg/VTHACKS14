@@ -24,7 +24,7 @@ import {
 } from '../worker/incremental';
 import { redact, revertOne } from '../worker/redact';
 import { sendToBackground } from '../shared/messages';
-import { SUBMIT_LATENCY_BUDGET_MS, TYPING_DEBOUNCE_MS, wrapToken } from '../shared/config';
+import { SUBMIT_LATENCY_BUDGET_MS, TYPING_DEBOUNCE_MS } from '../shared/config';
 import type { Finding, Placeholder, Settings, UsageEvent } from '../shared/types';
 import { ClaudeAdapter } from './adapters/claude';
 import { SubmitGate, type GateVerdict } from './gate';
@@ -42,7 +42,7 @@ import { showDiff, closeDiff } from './ui/diff';
 import { showBlockPanel } from './ui/cui-block';
 import { showChip, dismissChip } from './ui/chip';
 import { showReady } from './ui/ready';
-import { renderLive, hideLive, setNerState, setNerTiming } from './ui/live';
+import { renderLive, hideLive, setNerState, setNerTiming, setLiveHandler } from './ui/live';
 import {
   renderHighlights,
   clearHighlights,
@@ -50,6 +50,7 @@ import {
 } from './ui/highlights';
 import type { TextMap } from './textmap';
 import type { NerSpan } from '../shared/ner';
+import { applyConfirmations, isConfirmed, toggleConfirmed } from './confirmed';
 import { splitStable, hash } from '../worker/chunks';
 import { nerSpansToFindings } from '../worker/ner-map';
 import { resolveOverlaps } from '../worker/detectors';
@@ -114,13 +115,16 @@ const gate = new SubmitGate(adapter, {
     // hold the send and finish the job on the async path below.
     const needsModel =
       settings.enabled && settings.nerEnabled && settings.autoRedactNames && nerFor !== text;
+    // With confirm-to-redact (the default) there is nothing to wait for:
+    // the user has already decided, and an unconfirmed name was never going
+    // to be replaced. Enter stays instant.
 
     if (needsModel) {
       void finishSubmitWithNer(text, result);
       return 'hold';
     }
 
-    const merged = promoteConfidentNames([...result.findings, ...currentNerFindings(text)]);
+    const merged = redactable([...result.findings, ...currentNerFindings(text)]);
     return applyRedactionAndSend(text, merged, result.elapsedMs);
   },
 });
@@ -179,7 +183,7 @@ async function finishSubmitWithNer(
     );
   }
 
-  const merged = promoteConfidentNames([...result.findings, ...currentNerFindings(text)]);
+  const merged = redactable([...result.findings, ...currentNerFindings(text)]);
   const verdict = applyRedactionAndSend(text, merged, result.elapsedMs);
   // applyRedactionAndSend already sent on 'hold'. 'send' means there was
   // nothing to redact, so release the original event ourselves.
@@ -241,21 +245,17 @@ function applyRedactionAndSend(
  * having happened -- that pass only makes this one cheap.
  */
 /**
- * Promote confident model findings into the redactable tier.
+ * Decide which findings are allowed to alter the prompt.
  *
- * NER lands in 'low', which never alters text. When the user has asked for
- * names to be redacted automatically, a finding the model is confident
- * about is raised to 'medium' so the existing redaction path picks it up.
- * Anything below the threshold stays 'low' and remains highlight-only --
- * that boundary is what keeps a guess from silently rewriting the prompt.
+ * Regex tiers always act. Model findings act only when the user has
+ * confirmed them by clicking -- or, if they have opted out of confirming,
+ * when the model's score clears the threshold.
  */
-function promoteConfidentNames(findings: Finding[]): Finding[] {
-  if (!settings.autoRedactNames) return findings;
-  return findings.map((f) =>
-    f.severity === 'low' && (f.score ?? 0) >= settings.nerAutoRedactMinScore
-      ? { ...f, severity: 'medium' as const }
-      : f,
-  );
+function redactable(findings: Finding[]): Finding[] {
+  return applyConfirmations(findings, {
+    enabled: settings.autoRedactNames,
+    minScore: settings.nerAutoRedactMinScore,
+  });
 }
 
 function scanNow(text: string) {
@@ -340,7 +340,10 @@ function advisoryScan(): void {
 
   const { findings, stats } = scanner.scan(text);
   const caret = adapter.getCaretOffset();
-  const live = markSettled(findings, text, caret);
+  const live = markSettled(findings, text, caret).map((f) => ({
+    ...f,
+    confirmed: f.severity === 'low' && isConfirmed(f),
+  }));
   lastMap = map;
   lastLive = live;
   renderLive(live, stats, text.length);
@@ -521,7 +524,10 @@ function repaintWithNer(): void {
   const current = adapter.readText();
   if (current !== nerFor || !lastMap) return;
   const merged = resolveOverlaps([...lastLive, ...nerFindings]);
-  const live = markSettled(merged, current, adapter.getCaretOffset());
+  const live = markSettled(merged, current, adapter.getCaretOffset()).map((f) => ({
+    ...f,
+    confirmed: f.severity === 'low' && isConfirmed(f),
+  }));
   lastLive = live;
   renderLive(live, scanner.stats, current.length);
   renderHighlights(lastMap, live);
@@ -612,12 +618,19 @@ async function boot(): Promise<void> {
   window.addEventListener('scroll', redraw, { capture: true, passive: true });
   window.addEventListener('resize', redraw, { passive: true });
 
-  // Clicking a settled highlight redacts just that one finding in place.
-  setHighlightHandler((f) => {
-    const text = adapter.readText();
-    const replaced = text.slice(0, f.start) + wrapToken(`${f.kind.toUpperCase()}_1`) + text.slice(f.end);
-    if (adapter.writeText(replaced)) advisoryScan();
-  });
+  // Clicking a highlight, or its row in the panel, toggles whether that
+  // finding will be replaced on send. It deliberately does NOT edit the
+  // composer now: rewriting text under the caret mid-sentence moves the
+  // cursor and risks desyncing ProseMirror's document model. The
+  // substitution happens at send, with everything else.
+  const onPick = (f: Finding): void => {
+    if (f.severity !== 'low') return; // higher tiers are always replaced
+    const now = toggleConfirmed(f);
+    console.info(`[prompt-firewall] ${now ? 'confirmed' : 'unconfirmed'} ${f.kind}: ${f.value}`);
+    advisoryScan();
+  };
+  setHighlightHandler(onPick);
+  setLiveHandler(onPick);
   // Enter dismisses the routing chip and sends normally -- the chip never
   // intercepts the keystroke.
   document.addEventListener(

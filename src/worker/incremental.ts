@@ -30,8 +30,8 @@ export interface IncrementalResult {
   stats: ScanStats;
 }
 
-/** A finding plus whether the text around it has stopped moving. */
-export type LiveFinding = Finding & { settled: boolean };
+/** A finding plus display state: has the text settled, has the user confirmed it. */
+export type LiveFinding = Finding & { settled: boolean; confirmed?: boolean };
 
 type DetectFn = (text: string) => Finding[];
 
