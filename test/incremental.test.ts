@@ -256,3 +256,44 @@ describe('ner offset mapping', () => {
     expect(fs[0]!.severity).toBe('low');
   });
 });
+
+describe('settled: sentence punctuation', () => {
+  const orgOf = (t: string) => {
+    // A bare regex finding stand-in, so this tests isSettled and nothing else.
+    const start = t.indexOf('Microsoft');
+    return {
+      kind: 'organization' as const,
+      severity: 'low' as const,
+      label: 'org',
+      start,
+      end: start + 'Microsoft'.length,
+      value: 'Microsoft',
+      detector: 'test',
+    };
+  };
+
+  it('a period at the end of a sentence settles the match', () => {
+    const t = 'I worked at Microsoft.';
+    expect(isSettled(orgOf(t), t, t.length)).toBe(true);
+  });
+
+  it('a period followed by a space settles the match', () => {
+    const t = 'I worked at Microsoft. Then I left.';
+    expect(isSettled(orgOf(t), t, t.length)).toBe(true);
+  });
+
+  it('question and exclamation marks settle the match', () => {
+    for (const t of ['Was it Microsoft?', 'It was Microsoft!']) {
+      expect(isSettled(orgOf(t), t, t.length)).toBe(true);
+    }
+  });
+
+  it('a mid-token dot does NOT settle the match', () => {
+    // The user is typing a domain: ".co" is on its way to ".com".
+    const t = 'mail dana@ex.co';
+    const f = { kind: 'email' as const, severity: 'medium' as const, label: 'email',
+                start: 5, end: 13, value: 'dana@ex', detector: 'test' };
+    // end=13 points at '.', and the char after it is 'c' -- still typing.
+    expect(isSettled(f, t, t.length)).toBe(false);
+  });
+});

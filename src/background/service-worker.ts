@@ -81,7 +81,7 @@ async function handle(msg: ToBackground, tabId: number | undefined): Promise<Fro
     }
 
     case 'ner:detect': {
-      const r = await askOffscreen({ type: 'ner:detect', text: msg.text, threshold: msg.threshold });
+      const r = await askOffscreen({ type: 'ner:detect', texts: msg.texts, threshold: msg.threshold });
       return r.type === 'ner:spans'
         ? r
         : { type: 'ner:spans', spans: [], error: r.type === 'ner:error' ? r.error : 'unexpected' };

@@ -141,8 +141,15 @@ function dedupe(findings: Finding[]): Finding[] {
   return out;
 }
 
-/** Characters that terminate a match, proving the user moved past it. */
-const TERMINATORS = /[\s,;:)\]}"'<>]/;
+/** Characters that unambiguously end a match. */
+const HARD_TERMINATORS = /[\s,;:)\]}"'<>]/;
+
+/**
+ * Sentence punctuation also terminates -- but only at a real sentence end.
+ * A bare dot is ambiguous: in "dana@ex.co" the next character being '.' means
+ * the user is mid-domain on the way to ".com", not that they finished.
+ */
+const SENTENCE_ENDERS = /[.!?]/;
 
 /**
  * Is this finding stable enough to show?
@@ -159,7 +166,13 @@ const TERMINATORS = /[\s,;:)\]}"'<>]/;
 export function isSettled(f: Finding, text: string, caret: number | null): boolean {
   if (f.end >= text.length) return false;
   if (caret !== null && caret >= f.start && caret <= f.end) return false;
-  return TERMINATORS.test(text[f.end] ?? ' ');
+  const next = text[f.end] ?? ' ';
+  if (HARD_TERMINATORS.test(next)) return true;
+  if (SENTENCE_ENDERS.test(next)) {
+    const after = text[f.end + 1];
+    return after === undefined || /\s/.test(after);
+  }
+  return false;
 }
 
 export function markSettled(

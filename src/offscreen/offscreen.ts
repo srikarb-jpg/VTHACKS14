@@ -148,28 +148,40 @@ async function ensureModel(): Promise<void> {
   }
 }
 
-async function detect(text: string, entities: string[], threshold: number): Promise<NerSpan[]> {
+/**
+ * Batched inference. GLiNER accepts several texts in one call, and one call
+ * over N chunks is markedly cheaper than N calls -- the per-call overhead
+ * (tokenizing the label set, session setup) is paid once instead of N times.
+ */
+async function detect(
+  texts: string[],
+  entities: string[],
+  threshold: number,
+): Promise<NerSpan[][]> {
   await ensureModel();
-  if (!model) return [];
+  if (!model || texts.length === 0) return texts.map(() => []);
 
   const started = performance.now();
   const out = await withTimeout(
-    model.inference({ texts: [text], entities, flatNer: true, threshold }),
+    model.inference({ texts, entities, flatNer: true, threshold }),
     INFERENCE_TIMEOUT_MS,
     'inference',
   );
+  const chars = texts.reduce((n, s) => n + s.length, 0);
   console.info(
     `[prompt-firewall:offscreen] inference ${(performance.now() - started).toFixed(0)}ms ` +
-      `for ${text.length} chars -> ${(out[0] ?? []).length} spans`,
+      `for ${texts.length} chunk(s) / ${chars} chars`,
   );
 
-  return (out[0] ?? []).map((e) => ({
-    start: e.start,
-    end: e.end,
-    label: e.label,
-    score: e.score,
-    text: e.spanText,
-  }));
+  return texts.map((_, i) =>
+    (out[i] ?? []).map((e) => ({
+      start: e.start,
+      end: e.end,
+      label: e.label,
+      score: e.score,
+      text: e.spanText,
+    })),
+  );
 }
 
 chrome.runtime.onMessage.addListener(
@@ -191,7 +203,7 @@ chrome.runtime.onMessage.addListener(
           case 'ner:selftest': {
             const sample = 'Amanda Britfield was my manager at Microsoft.';
             const t0 = performance.now();
-            const spans = await detect(sample, DEFAULT_ENTITIES, 0.4);
+            const spans = (await detect([sample], DEFAULT_ENTITIES, 0.4))[0] ?? [];
             reply({
               type: 'ner:selftest-result',
               ms: performance.now() - t0,
@@ -204,7 +216,7 @@ chrome.runtime.onMessage.addListener(
           case 'ner:detect':
             reply({
               type: 'ner:spans',
-              spans: await detect(msg.text, msg.entities ?? DEFAULT_ENTITIES, msg.threshold ?? 0.5),
+              spans: await detect(msg.texts, msg.entities ?? DEFAULT_ENTITIES, msg.threshold ?? 0.5),
               error: null,
             });
             return;

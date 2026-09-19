@@ -65,13 +65,13 @@ export type ToBackground =
   /** Begin the one-time model download. Resolves when it is usable. */
   | { type: 'ner:load' }
   /** Run detection. Returns [] when the model is not loaded. */
-  | { type: 'ner:detect'; text: string; threshold?: number }
+  | { type: 'ner:detect'; texts: string[]; threshold?: number }
   | { type: 'ner:selftest' };
 
 export type FromBackground =
   | { type: 'ner:probe-result'; probe: Probe; loaded: boolean; error: string | null }
   | { type: 'ner:loaded'; ok: boolean; error: string | null }
-  | { type: 'ner:spans'; spans: NerSpan[]; error: string | null }
+  | { type: 'ner:spans'; spans: NerSpan[][]; error: string | null }
   | { type: 'ner:selftest-result'; ms: number; spans: NerSpan[]; provider: string; error: string | null }
   | { type: 'vault:contents'; placeholders: Placeholder[] }
   | { type: 'usage:rows'; events: UsageEvent[] }

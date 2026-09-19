@@ -42,6 +42,8 @@ import {
   setHighlightHandler,
 } from './ui/highlights';
 import type { TextMap } from './textmap';
+import type { NerSpan } from '../shared/ner';
+import { splitStable, hash } from '../worker/chunks';
 import { nerSpansToFindings } from '../worker/ner-map';
 import { resolveOverlaps } from '../worker/detectors';
 
@@ -231,10 +233,12 @@ function advisoryScan(): void {
   // NER runs alongside, never in front. Results arrive late and merge into
   // whatever is already on screen; if they never arrive, nothing breaks,
   // because the low tier only ever draws underlines.
-  if (settings.nerEnabled) {
-    void runNer(text);
-  } else {
+  if (!settings.nerEnabled) {
     setNerState('off');
+  } else if (text !== nerFor) {
+    // A scan triggered by caret movement or the staleness timer does not
+    // need the model re-run on text it has already seen.
+    void runNer(text);
   }
 
   if (!settings.showRoutingChips) {
@@ -283,19 +287,33 @@ function runAdvisorySoon(): void {
 }
 
 /**
- * NER is single-flight.
+ * NER, run through the same chunk cache as the regex tier.
  *
- * ONNX Runtime cannot abort a forward pass once it has started, so the only
- * way to avoid a backlog is to refuse to start a second one. While a pass is
- * running we remember the newest text and run exactly one more when it
- * finishes -- intermediate states are dropped rather than queued. Without
- * this, a fast typist accumulates a queue and the highlights fall seconds
- * behind the cursor.
+ * Originally this sent the WHOLE prompt to the model on every scan, which is
+ * exactly the mistake the chunk cache exists to prevent: a 6-sentence prompt
+ * re-ran inference over all 6 sentences for every keystroke pause. Now each
+ * sentence is hashed, cached, and only dirty ones are sent -- batched into
+ * one call, because GLiNER accepts several texts at once and the per-call
+ * overhead is paid once rather than per chunk.
+ *
+ * Single-flight remains: ONNX cannot abort a forward pass once started, so a
+ * second is refused and only the newest pending text is chased.
  */
+const nerCache = new Map<string, NerSpan[]>();
+const NER_CACHE_MAX = 256;
+
 let nerInFlight = false;
 let nerPending: string | null = null;
 let nerFor = '';
 let nerFindings: Finding[] = [];
+
+function cacheNer(key: string, spans: NerSpan[]): void {
+  nerCache.set(key, spans);
+  if (nerCache.size > NER_CACHE_MAX) {
+    const oldest = nerCache.keys().next().value;
+    if (oldest !== undefined) nerCache.delete(oldest);
+  }
+}
 
 async function runNer(text: string): Promise<void> {
   if (nerInFlight) {
@@ -305,19 +323,47 @@ async function runNer(text: string): Promise<void> {
   nerInFlight = true;
   setNerState('running');
   try {
-    const res = await sendToBackground({ type: 'ner:detect', text });
-    if (res.error) {
-      console.warn('[prompt-firewall] ner error', res.error);
-      setNerState({ error: res.error });
-      return;
+    const chunks = splitStable(text);
+    const dirty: { index: number; text: string }[] = [];
+    const perChunk: (NerSpan[] | null)[] = chunks.map((c, i) => {
+      const cached = nerCache.get(hash(c.text));
+      if (cached) return cached;
+      dirty.push({ index: i, text: c.text });
+      return null;
+    });
+
+    if (dirty.length > 0) {
+      const res = await sendToBackground({
+        type: 'ner:detect',
+        texts: dirty.map((d) => d.text),
+      });
+      if (res.error) {
+        console.warn('[prompt-firewall] ner error', res.error);
+        setNerState({ error: res.error });
+        return;
+      }
+      dirty.forEach((d, i) => {
+        const spans = res.spans[i] ?? [];
+        cacheNer(hash(d.text), spans);
+        perChunk[d.index] = spans;
+      });
     }
-    nerFindings = nerSpansToFindings(res.spans, text);
-    console.info(
-      `[prompt-firewall] ner: ${res.spans.length} raw span(s) -> ${nerFindings.length} finding(s)`,
-      res.spans,
-    );
+
+    // Rebase each chunk's spans into document coordinates.
+    const all: NerSpan[] = [];
+    chunks.forEach((c, i) => {
+      for (const s of perChunk[i] ?? []) {
+        all.push({ ...s, start: s.start + c.start, end: s.end + c.start });
+      }
+    });
+
+    nerFindings = nerSpansToFindings(all, text);
     nerFor = text;
     setNerState({ spans: nerFindings.length });
+    console.info(
+      `[prompt-firewall] ner: ${chunks.length} chunks, ${dirty.length} sent, ` +
+        `${all.length} spans -> ${nerFindings.length} findings`,
+    );
     repaintWithNer();
   } catch (err) {
     console.warn('[prompt-firewall] ner unavailable', err);
@@ -326,7 +372,6 @@ async function runNer(text: string): Promise<void> {
     nerInFlight = false;
     const next = nerPending;
     nerPending = null;
-    // Only chase the newest state, and only if it actually moved on.
     if (next !== null && next !== nerFor) void runNer(next);
   }
 }
