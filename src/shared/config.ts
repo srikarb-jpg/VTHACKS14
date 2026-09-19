@@ -3,14 +3,6 @@
  * or that we might want to switch off live on stage, lives here.
  */
 
-/**
- * The memory audit works end to end but is off: what Claude stores about a
- * person is niche, domain-specific PII that a small on-device model cannot
- * find reliably, and a feature that quietly misses things is worse than none.
- * Kept in the tree, hidden behind this flag.
- */
-export const MEMORY_AUDIT_ENABLED = false;
-
 /** Debounce for advisory scans while typing, in milliseconds. */
 export const TYPING_DEBOUNCE_MS = 300;
 

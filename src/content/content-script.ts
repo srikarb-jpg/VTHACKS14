@@ -20,10 +20,9 @@ import { IncrementalScanner, maxSeverity, type LiveFinding } from '../worker/inc
 import { buildLiveView } from './live-view';
 import { compileRules, type CompiledRule } from '../shared/policy';
 import { detectCustom } from '../worker/detectors/custom';
-import { isAuditActive, startMemoryAudit, stopMemoryAudit } from './memory-audit';
 import { redact, revertOne } from '../worker/redact';
 import { sendToBackground } from '../shared/messages';
-import { MEMORY_AUDIT_ENABLED, SUBMIT_LATENCY_BUDGET_MS, TYPING_DEBOUNCE_MS } from '../shared/config';
+import { SUBMIT_LATENCY_BUDGET_MS, TYPING_DEBOUNCE_MS } from '../shared/config';
 import type { Finding, Placeholder, Settings } from '../shared/types';
 import { ClaudeAdapter } from './adapters/claude';
 import { SubmitGate, type GateVerdict } from './gate';
@@ -380,8 +379,6 @@ let lastRegex: Finding[] = [];
 let settleAll = false;
 
 function advisoryScan(): void {
-  // The memory audit owns the highlight layer while it is open.
-  if (isAuditActive()) return;
   lastScanAt = performance.now();
   const map = adapter.readTextMap();
   const text = (map?.text ?? '').trimEnd();
@@ -592,8 +589,6 @@ function scheduleAdvisory(delay: number): void {
 const BOUNDARY_KEYS = new Set([' ', ',', '.', ';', ':', ')', ']', '}', 'Enter', 'Tab']);
 
 function onTyping(e: Event): void {
-  // Typing in the composer means the user is back to writing: close the audit.
-  if (e.type === 'input' && isAuditActive()) stopMemoryAudit();
   // Real typing (or deleting) ends the pasted-text grace; the paste's own
   // input event does not.
   if (e instanceof InputEvent && !e.inputType.startsWith('insertFromPaste')) settleAll = false;
@@ -669,7 +664,7 @@ async function boot(): Promise<void> {
   // Highlight rects are viewport coordinates, so anything that moves the
   // text invalidates them. Redraw from the cached map rather than rescanning.
   const redraw = (): void => {
-    if (!isAuditActive() && lastMap && lastLive.length) renderHighlights(lastMap, lastLive);
+    if (lastMap && lastLive.length) renderHighlights(lastMap, lastLive);
     // Revealed values are drawn at viewport coordinates too, so they have
     // to track the text the same way the underlines do.
     repaintReveals();
@@ -696,7 +691,6 @@ async function boot(): Promise<void> {
   // cursor and risks desyncing ProseMirror's document model. The
   // substitution happens at send, with everything else.
   const onPick = (f: Finding): void => {
-    if (isAuditActive()) return; // audit rows are read-only
     if (f.severity !== 'low') return; // higher tiers are always replaced
     const now = toggleConfirmed(f);
     console.info(`[prompt-firewall] ${now ? 'confirmed' : 'unconfirmed'} ${f.kind}: ${f.value}`);
@@ -704,23 +698,6 @@ async function boot(): Promise<void> {
   };
   setHighlightHandler(onPick);
   setLiveHandler(onPick);
-  startMemoryAudit({
-    nerEnabled: () => settings.enabled && settings.nerEnabled,
-    // Only offer it on a fresh, empty chat: running it inside an existing
-    // conversation would drop the user's memory text into that thread.
-    canStart: () =>
-      MEMORY_AUDIT_ENABLED &&
-      settings.enabled &&
-      (location.pathname === '/new' || location.pathname === '/') &&
-      adapter.getComposer() !== null &&
-      adapter.readText().trim() === '',
-    sendPrompt: async (text) => {
-      if (!adapter.writeText(text)) return false;
-      if (!(await adapter.verifyCommitted(text))) return false;
-      gate.sendWithoutIntercepting();
-      return true;
-    },
-  });
 
   setRevealHandler((on) => setRevealAll(on));
   // The toggle is only useful once something on the page has actually been
