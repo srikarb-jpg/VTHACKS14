@@ -110,6 +110,27 @@ describe('incremental cache', () => {
   });
 });
 
+describe('oversized documents', () => {
+  it('bypasses the cache rather than thrashing it', () => {
+    // More chunks than the cache can hold: every entry would be evicted
+    // before reuse, so the cached path is pure overhead.
+    const huge = 'Sentence about dana@example.com here. '.repeat(2000);
+    const s = mk();
+    const r = s.scan(huge);
+    expect(r.stats.bypassed).toBe(true);
+    expect(s.size).toBe(0); // nothing was cached
+    expect(r.findings.length).toBeGreaterThan(0);
+  });
+
+  it('bypassed results still match a flat scan', () => {
+    const huge = 'Call dana@example.com now. '.repeat(2000);
+    const s = mk();
+    const a = s.scan(huge).findings.map((f) => `${f.kind}:${f.start}`).sort();
+    const b = fullScan(huge).findings.map((f) => `${f.kind}:${f.start}`).sort();
+    expect(a).toEqual(b);
+  });
+});
+
 describe('cost model', () => {
   /**
    * The cache is not free: it hashes each padded chunk and allocates. With

@@ -21,6 +21,8 @@ export interface ScanStats {
   hits: number;
   misses: number;
   elapsedMs: number;
+  /** True when the document was too large to cache and was scanned flat. */
+  bypassed?: boolean;
 }
 
 export interface IncrementalResult {
@@ -57,6 +59,24 @@ export class IncrementalScanner {
   scan(text: string): IncrementalResult {
     const started = performance.now();
     const chunks = splitStable(text);
+
+    // Bypass the cache when the document has more chunks than the cache can
+    // hold. Otherwise every entry is evicted before it is ever reused, and
+    // we pay the hashing cost for a hit rate of zero -- measured at 500 KB,
+    // the cached path was SLOWER than a flat scan. Above this size a flat
+    // scan is both simpler and faster.
+    if (chunks.length > MAX_ENTRIES) {
+      const findings = resolveOverlaps(this.detect(text));
+      this.lastStats = {
+        chunks: chunks.length,
+        hits: 0,
+        misses: chunks.length,
+        elapsedMs: performance.now() - started,
+        bypassed: true,
+      };
+      return { findings, stats: this.lastStats };
+    }
+
     let hits = 0;
     let misses = 0;
     const collected: Finding[] = [];

@@ -190,6 +190,7 @@ let idleHandle: number | undefined;
  * ad-blocker premise fails no matter how good the detection is.
  */
 function advisoryScan(): void {
+  lastScanAt = performance.now();
   const text = adapter.readText();
   if (text.trim().length < 3) {
     hideLive();
@@ -225,13 +226,36 @@ function advisoryScan(): void {
   );
 }
 
+let lastScanAt = 0;
+
+/**
+ * Upper bound on how stale the panel may get.
+ *
+ * A pure debounce starves under sustained typing: at 120 wpm the gap between
+ * keystrokes is roughly 80 ms, so a 300 ms timer is cancelled every time and
+ * never fires. The boundary-key path (60 ms) usually rescues this, because
+ * spaces are frequent and 60 ms fits inside an 80 ms gap -- but "usually" is
+ * not a guarantee, and a fast burst with no spaces would starve completely.
+ *
+ * So: if it has been longer than this since the last scan, run immediately
+ * instead of debouncing. Detection is then guaranteed at least this often
+ * regardless of typing speed.
+ */
+const MAX_STALENESS_MS = 700;
+
+function runAdvisorySoon(): void {
+  if (idleHandle !== undefined) cancelIdleCallback(idleHandle);
+  idleHandle = requestIdleCallback(() => advisoryScan(), { timeout: 200 });
+}
+
 function scheduleAdvisory(delay: number): void {
   if (!settings.enabled) return;
   window.clearTimeout(typingTimer);
-  typingTimer = window.setTimeout(() => {
-    if (idleHandle !== undefined) cancelIdleCallback(idleHandle);
-    idleHandle = requestIdleCallback(() => advisoryScan(), { timeout: 200 });
-  }, delay);
+  if (performance.now() - lastScanAt > MAX_STALENESS_MS) {
+    runAdvisorySoon();
+    return;
+  }
+  typingTimer = window.setTimeout(runAdvisorySoon, delay);
 }
 
 /** Word boundaries settle a match, so scan sooner than the full debounce. */
