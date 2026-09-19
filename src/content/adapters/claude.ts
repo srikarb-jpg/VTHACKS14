@@ -68,6 +68,21 @@ export class ClaudeAdapter implements ComposerAdapter {
     return el.innerText.replace(/ /g, ' ').trimEnd();
   }
 
+  getCaretOffset(): number | null {
+    const el = this.getComposer();
+    const sel = window.getSelection();
+    if (!el || !sel || sel.rangeCount === 0) return null;
+    const range = sel.getRangeAt(0);
+    if (!el.contains(range.startContainer)) return null;
+    // Measure the text between the composer's start and the caret. Using a
+    // range rather than counting nodes keeps this correct across the nested
+    // block structure ProseMirror builds.
+    const probe = document.createRange();
+    probe.selectNodeContents(el);
+    probe.setEnd(range.startContainer, range.startOffset);
+    return probe.toString().length;
+  }
+
   writeText(text: string): boolean {
     const el = this.getComposer();
     if (!el) return false;

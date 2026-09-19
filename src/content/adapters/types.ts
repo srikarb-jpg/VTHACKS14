@@ -24,6 +24,13 @@ export interface ComposerAdapter {
   /** Trigger the site's own send. Returns false if the control was not found. */
   submit(): boolean;
 
+  /**
+   * Caret offset within the plain text of the composer, or null when the
+   * selection is elsewhere. Drives the settled/provisional rule -- a finding
+   * the caret sits inside is still being edited.
+   */
+  getCaretOffset(): number | null;
+
   /** Where to anchor toasts and panels so they track the composer. */
   getAnchor(): HTMLElement | null;
 

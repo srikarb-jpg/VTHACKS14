@@ -15,7 +15,8 @@
  * measure well under a millisecond. The module boundary is preserved so a
  * worker can be dropped back in without touching this file.
  */
-import { scan } from '../worker/detectors';
+import { scan as fullScan } from '../worker/detectors';
+import { IncrementalScanner, markSettled, maxSeverity } from '../worker/incremental';
 import { redact, revertOne } from '../worker/redact';
 import { sendToBackground } from '../shared/messages';
 import { SUBMIT_LATENCY_BUDGET_MS, TYPING_DEBOUNCE_MS } from '../shared/config';
@@ -28,8 +29,18 @@ import { showToast, dismissToast } from './ui/toast';
 import { showDiff, closeDiff } from './ui/diff';
 import { showBlockPanel } from './ui/cui-block';
 import { showChip, dismissChip } from './ui/chip';
+import { showReady } from './ui/ready';
+import { renderLive, hideLive } from './ui/live';
 
 const adapter = new ClaudeAdapter();
+
+/**
+ * One scanner for the whole page, shared by the typing pass and the submit
+ * pass. That sharing IS the optimisation: by the time Enter is pressed, the
+ * cache is already warm from typing, so the authoritative scan only has to
+ * re-run detection on whatever chunk is still dirty.
+ */
+const scanner = new IncrementalScanner((text) => fullScan(text).findings);
 let settings: Settings = {
   mode: 'autopilot',
   enabled: true,
@@ -110,8 +121,14 @@ const gate = new SubmitGate(adapter, {
   },
 });
 
+/**
+ * The authoritative scan. Always runs on the complete final text, always
+ * through the shared cache. Correctness never depends on the typing pass
+ * having happened -- that pass only makes this one cheap.
+ */
 function scanNow(text: string) {
-  return scan(text);
+  const { findings, stats } = scanner.scan(text);
+  return { findings, maxSeverity: maxSeverity(findings), elapsedMs: stats.elapsedMs };
 }
 
 function openDiff(original: string, redacted: string, placeholders: Placeholder[]): void {
@@ -163,34 +180,90 @@ async function logUsage(
 // ---------------------------------------------------------------------------
 
 let typingTimer: number | undefined;
+let idleHandle: number | undefined;
 
-function onTyping(): void {
+/**
+ * The advisory pass. Runs on a debounce while typing and never alters text.
+ *
+ * Scheduled inside requestIdleCallback so a fast typist never competes with
+ * the scan for the main thread. Typing must never stutter -- if it does, the
+ * ad-blocker premise fails no matter how good the detection is.
+ */
+function advisoryScan(): void {
+  const text = adapter.readText();
+  if (text.trim().length < 3) {
+    hideLive();
+    dismissChip();
+    return;
+  }
+
+  const { findings, stats } = scanner.scan(text);
+  const caret = adapter.getCaretOffset();
+  const live = markSettled(findings, text, caret);
+  renderLive(live, stats, text.length);
+
+  if (!settings.showRoutingChips) {
+    dismissChip();
+    return;
+  }
+  const decision = route(text);
+  if (!worthSuggesting(decision)) {
+    dismissChip();
+    return;
+  }
+  showChip(
+    {
+      decision,
+      onAccept: () => {
+        // The search lane ships disabled; accepting is a no-op placeholder
+        // until that lane exists. Logged so overrides become training data.
+        console.info('[prompt-firewall] lane accepted', decision.lane);
+      },
+      onDismiss: () => undefined,
+    },
+    adapter.getAnchor(),
+  );
+}
+
+function scheduleAdvisory(delay: number): void {
+  if (!settings.enabled) return;
   window.clearTimeout(typingTimer);
   typingTimer = window.setTimeout(() => {
-    if (!settings.enabled || !settings.showRoutingChips) return;
-    const text = adapter.readText();
-    if (text.trim().length < 8) {
-      dismissChip();
-      return;
-    }
-    const decision = route(text);
-    if (!worthSuggesting(decision)) {
-      dismissChip();
-      return;
-    }
-    showChip(
-      {
-        decision,
-        onAccept: () => {
-          // The search lane ships disabled; accepting is a no-op placeholder
-          // until that lane exists. Logged so overrides become training data.
-          console.info('[prompt-firewall] lane accepted', decision.lane);
-        },
-        onDismiss: () => undefined,
-      },
-      adapter.getAnchor(),
+    if (idleHandle !== undefined) cancelIdleCallback(idleHandle);
+    idleHandle = requestIdleCallback(() => advisoryScan(), { timeout: 200 });
+  }, delay);
+}
+
+/** Word boundaries settle a match, so scan sooner than the full debounce. */
+const BOUNDARY_KEYS = new Set([' ', ',', '.', ';', ':', ')', ']', '}', 'Enter', 'Tab']);
+
+function onTyping(e: Event): void {
+  const fast = e instanceof KeyboardEvent && BOUNDARY_KEYS.has(e.key);
+  scheduleAdvisory(fast ? 60 : TYPING_DEBOUNCE_MS);
+}
+
+/**
+ * Paste is handled on its own path, for two reasons. It is where the real
+ * threat lives -- nobody types an API key, they paste one -- and the pasted
+ * text arrives complete, so there is no partial-input problem and no reason
+ * to debounce.
+ */
+function onPaste(e: ClipboardEvent): void {
+  if (!settings.enabled) return;
+  const pasted = e.clipboardData?.getData('text/plain');
+  if (!pasted || pasted.trim().length < 3) return;
+
+  // Warm the cache with the pasted text immediately, then rescan the whole
+  // composer once the paste has actually landed in the DOM.
+  scanner.scan(pasted);
+  const hits = fullScan(pasted).findings;
+  if (hits.length) {
+    console.info(
+      `[prompt-firewall] paste: ${hits.length} finding(s)`,
+      hits.map((f) => f.label),
     );
-  }, TYPING_DEBOUNCE_MS);
+  }
+  window.setTimeout(() => advisoryScan(), 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -198,12 +271,32 @@ function onTyping(): void {
 // ---------------------------------------------------------------------------
 
 async function boot(): Promise<void> {
-  const res = await sendToBackground({ type: 'settings:get' });
-  settings = res.settings;
-
+  // Attach and show the indicator BEFORE any await. If the service worker is
+  // slow to wake or messaging is broken, we still want a visible signal that
+  // the content script itself injected -- otherwise a messaging bug and a
+  // failed injection look identical from the page.
   gate.attach();
+  showReady('armed');
+
+  try {
+    const res = await sendToBackground({ type: 'settings:get' });
+    settings = res.settings;
+  } catch (err) {
+    console.warn('[prompt-firewall] settings unavailable, using defaults', err);
+  }
+
   document.addEventListener('input', onTyping, { capture: true });
-  document.addEventListener('keydown', () => dismissChip(), { capture: true });
+  document.addEventListener('keyup', onTyping, { capture: true });
+  document.addEventListener('paste', onPaste, { capture: true });
+  // Enter dismisses the routing chip and sends normally -- the chip never
+  // intercepts the keystroke.
+  document.addEventListener(
+    'keydown',
+    (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) dismissChip();
+    },
+    { capture: true },
+  );
 
   startRehydration(adapter, async () => {
     const r = await sendToBackground({ type: 'vault:get' });
@@ -214,7 +307,26 @@ async function boot(): Promise<void> {
     gate.detach();
     dismissToast();
     dismissChip();
+    hideLive();
   });
+
+  // claude.ai is a single-page app, so the composer frequently does not
+  // exist yet at document_idle, and it is replaced again on navigation
+  // between conversations. Poll rather than assume: the gate itself resolves
+  // the composer lazily on every event, so this only drives the indicator.
+  let lastSeen: boolean | null = null;
+  const pollComposer = (): void => {
+    const found = adapter.getComposer() !== null;
+    if (found !== lastSeen) {
+      lastSeen = found;
+      showReady(found ? 'armed' : 'no-composer');
+      console.info(
+        `[prompt-firewall] composer ${found ? 'found' : 'NOT FOUND — selectors may be stale'}`,
+      );
+    }
+  };
+  pollComposer();
+  window.setInterval(pollComposer, 1500);
 
   console.info('[prompt-firewall] active on', adapter.site);
 }

@@ -9,7 +9,8 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "deploy": "npm run build && rm -rf /mnt/c/Users/belve/Downloads/promptfirewall && mkdir -p /mnt/c/Users/belve/Downloads/promptfirewall && cp -r dist/* /mnt/c/Users/belve/Downloads/promptfirewall/ && echo 'Load unpacked from C:\\\\Users\\\\belve\\\\Downloads\\\\promptfirewall'"
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "2.7.1",
