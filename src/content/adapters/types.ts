@@ -30,6 +30,12 @@ export interface ComposerAdapter {
    */
   writeText(text: string): boolean;
 
+  /**
+   * Confirms the editor has actually committed the text, after letting it
+   * settle. A DOM read alone is not sufficient -- see the implementation.
+   */
+  verifyCommitted(expected: string): Promise<boolean>;
+
   /** Trigger the site's own send. Returns false if the control was not found. */
   submit(): boolean;
 

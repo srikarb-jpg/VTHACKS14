@@ -39,6 +39,8 @@ const RESPONSE_SELECTORS = [
   '[data-is-streaming] .prose',
 ];
 
+const norm = (s: string): string => s.replace(/\s+/g, ' ').trim();
+
 function firstMatch(selectors: string[], root: ParentNode = document): HTMLElement | null {
   for (const sel of selectors) {
     const el = root.querySelector<HTMLElement>(sel);
@@ -94,41 +96,75 @@ export class ClaudeAdapter implements ComposerAdapter {
     if (!el) return false;
 
     el.focus();
-    if (!this.selectAll(el)) return false;
 
     // Strategy 1: execCommand. Deprecated, still the most compatible path
-    // into ProseMirror's own input handling.
-    if (document.execCommand('insertText', false, text)) {
-      if (this.verify(text)) return true;
+    // into ProseMirror's own input handling -- it routes through the same
+    // beforeinput pipeline as real typing, so the editor updates its
+    // document model rather than just its DOM.
+    if (this.selectAll(el) && document.execCommand('insertText', false, text)) {
+      if (this.verify(text)) {
+        console.info('[prompt-firewall] composer write: execCommand');
+        return true;
+      }
     }
 
-    // Strategy 2: synthetic paste with a real DataTransfer. ProseMirror has a
-    // dedicated paste handler, so this survives when execCommand is disabled.
+    // Strategy 2: synthetic paste with a real DataTransfer. ProseMirror has
+    // a dedicated paste handler. Only counts as success if the handler
+    // actually consumed the event (preventDefault -> dispatchEvent false).
     this.selectAll(el);
     const dt = new DataTransfer();
     dt.setData('text/plain', text);
-    const pasted = el.dispatchEvent(
+    const consumed = !el.dispatchEvent(
       new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }),
     );
-    if (pasted !== false && this.verify(text)) return true;
+    if (consumed && this.verify(text)) {
+      console.info('[prompt-firewall] composer write: paste');
+      return true;
+    }
 
-    // Strategy 3: beforeinput with insertReplacementText. Last resort; some
-    // ProseMirror builds honour it where the two above are blocked.
-    this.selectAll(el);
-    el.dispatchEvent(
-      new InputEvent('beforeinput', {
-        inputType: 'insertReplacementText',
-        data: text,
-        bubbles: true,
-        cancelable: true,
-      }),
-    );
-    if (this.verify(text)) return true;
+    // Strategy 3 (insertReplacementText via a synthetic beforeinput) was
+    // removed deliberately. ProseMirror ignores untrusted beforeinput, so
+    // the event changed nothing while our own DOM read still saw the old
+    // value -- it could only ever produce a false success.
 
-    // Every strategy failed. Report it -- the caller must abort the send
-    // rather than let the original text through.
     console.error('[prompt-firewall] all composer write strategies failed');
     return false;
+  }
+
+  /**
+   * Confirms the editor's own state matches, not just the rendered DOM.
+   *
+   * This is the check that matters and the one that was missing. Reading
+   * the DOM proves what is on screen; it does NOT prove what ProseMirror
+   * will submit. When the two disagree the extension reports a redaction
+   * that never happened and the original text is sent -- the single worst
+   * failure this codebase can have.
+   *
+   * Waits two animation frames first, so the editor has processed the edit
+   * and any React state has flushed before we look.
+   */
+  async verifyCommitted(expected: string): Promise<boolean> {
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const el = this.getComposer();
+    if (!el) return false;
+
+    const domText = this.readText();
+    if (norm(domText) !== norm(expected)) {
+      console.error('[prompt-firewall] composer DOM does not match expected text');
+      return false;
+    }
+
+    // ProseMirror exposes its view on the DOM node. When present, its
+    // document is the authority on what will actually be submitted.
+    const view = (el as unknown as { pmViewDesc?: unknown }).pmViewDesc;
+    if (view) {
+      const pmText = (el as unknown as { textContent: string }).textContent ?? '';
+      if (!norm(pmText).includes(norm(expected).slice(0, 40))) {
+        console.error('[prompt-firewall] ProseMirror document disagrees with the DOM');
+        return false;
+      }
+    }
+    return true;
   }
 
   private selectAll(el: HTMLElement): boolean {
@@ -141,13 +177,9 @@ export class ClaudeAdapter implements ComposerAdapter {
     return true;
   }
 
-  /**
-   * Confirms the write actually landed. Without this we could believe a
-   * redaction succeeded when the composer still holds the original text,
-   * which is precisely the failure mode that leaks data.
-   */
+  /** Fast synchronous DOM check used between write strategies. */
   private verify(expected: string): boolean {
-    return this.readText().replace(/\s+/g, ' ').trim() === expected.replace(/\s+/g, ' ').trim();
+    return norm(this.readText()) === norm(expected);
   }
 
   submit(): boolean {

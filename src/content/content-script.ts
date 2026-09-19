@@ -30,6 +30,7 @@ import { ClaudeAdapter } from './adapters/claude';
 import { SubmitGate, type GateVerdict } from './gate';
 import { route, worthSuggesting } from './router';
 import { startRehydration, setRevealAll } from './rehydrate';
+import { showWriteFailure, showLeakWarning } from './ui/alerts';
 import {
   showRevealToggle,
   hideRevealToggle,
@@ -191,8 +192,15 @@ async function finishSubmitWithNer(
 }
 
 /**
- * The shared tail of both paths: redact whatever we were given, write it
- * back, send, and show the toast.
+ * The shared tail of both paths: redact, write, VERIFY, then send.
+ *
+ * The verify step is not optional. Writing into a ProseMirror composer can
+ * update the rendered DOM while leaving the editor's own document holding
+ * the original text -- and it is the editor's document that gets submitted.
+ * That desync makes the extension report a redaction that never happened
+ * while the real data goes out, which is the worst failure this codebase
+ * can produce. So nothing is sent until the editor has demonstrably
+ * committed the redacted text, and the toast is only shown after that.
  */
 function applyRedactionAndSend(
   text: string,
@@ -207,36 +215,68 @@ function applyRedactionAndSend(
 
   const r = redact(text, resolveOverlaps(findings), REDACTION_THRESHOLD);
   if (!adapter.writeText(r.redacted)) {
-    // We could not rewrite the composer. Cancelling is the only safe option:
-    // letting the event through would send the ORIGINAL text.
     console.error('[prompt-firewall] composer write failed; send cancelled');
+    showWriteFailure();
     return 'cancel';
   }
 
-  // Kept in this page as well as the vault. The vault lives in the service
-  // worker, which Chrome terminates when idle -- and the reveal toggle has
-  // to keep working for as long as the conversation is on screen.
-  rememberPlaceholders(r.placeholders);
+  void (async () => {
+    if (!(await adapter.verifyCommitted(r.redacted))) {
+      // The editor did not take our text. Do NOT send: releasing the event
+      // here would transmit the original while we claim it was scrubbed.
+      console.error('[prompt-firewall] redaction not committed by the editor; send cancelled');
+      showWriteFailure();
+      return;
+    }
 
-  void sendToBackground({ type: 'vault:put', placeholders: r.placeholders });
-  void sendToBackground({
-    type: 'badge:increment',
-    redactions: r.placeholders.length,
-    reroutes: 0,
-  });
-  void logUsage(text, scanMs, r.placeholders, false);
+    rememberPlaceholders(r.placeholders);
+    void sendToBackground({ type: 'vault:put', placeholders: r.placeholders });
+    void sendToBackground({
+      type: 'badge:increment',
+      redactions: r.placeholders.length,
+      reroutes: 0,
+    });
+    void logUsage(text, scanMs, r.placeholders, false);
 
-  gate.sendWithoutIntercepting();
+    gate.sendWithoutIntercepting();
 
-  showToast({
-    placeholders: r.placeholders,
-    onUndo: () => {
-      adapter.writeText(r.original);
-    },
-    onOpenDiff: () => openDiff(r.original, r.redacted, r.placeholders),
-  });
+    showToast({
+      placeholders: r.placeholders,
+      onUndo: () => {
+        adapter.writeText(r.original);
+      },
+      onOpenDiff: () => openDiff(r.original, r.redacted, r.placeholders),
+    });
+
+    // Belt and braces: read back what the page actually shows as sent and
+    // check none of the real values survived. If one did, say so loudly --
+    // a silent leak is far worse than an alarming banner.
+    auditSentMessage(r.placeholders);
+  })();
 
   return 'hold';
+}
+
+/**
+ * Post-send audit.
+ *
+ * Reads the conversation after the message lands and looks for any value we
+ * believed we had replaced. This cannot prevent a leak, only detect one,
+ * but a detected leak is recoverable (delete the message, rotate the key)
+ * and an undetected one is not.
+ */
+function auditSentMessage(placeholders: Placeholder[]): void {
+  if (!placeholders.length) return;
+  window.setTimeout(() => {
+    const body = document.body.innerText;
+    const leaked = placeholders.filter((p) => p.value.length > 3 && body.includes(p.value));
+    if (!leaked.length) {
+      console.info(`[prompt-firewall] audit clean: ${placeholders.length} placeholder(s) held`);
+      return;
+    }
+    console.error('[prompt-firewall] AUDIT FAILED — unredacted values found on the page', leaked);
+    showLeakWarning(leaked);
+  }, 1200);
 }
 
 /**

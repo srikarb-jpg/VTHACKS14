@@ -79,7 +79,19 @@ Stated here so nobody has to discover them at 3am, and so we can answer honestly
 
 ## The one thing that must not break
 
-If `ClaudeAdapter.writeText()` fails, the send is **cancelled**, never passed through.
-Letting the event proceed would transmit the original unredacted text while the user
-believes it was scrubbed. That is the worst failure this codebase can have, and
-`writeText` verifies its own result for exactly this reason.
+If the redacted text does not reach the editor, the send is **cancelled**, never passed
+through. Letting it proceed would transmit the original text while the user believes it
+was scrubbed. That is the worst failure this codebase can have, and it has happened once:
+a DOM read reported success while ProseMirror's own document still held the original, and
+that document is what gets submitted.
+
+Three defences now, in order:
+
+1. `writeText` tries each insertion strategy and checks the DOM after each.
+2. `verifyCommitted` waits two animation frames and re-checks, including ProseMirror's
+   own state. **Nothing is sent until this passes**, and the toast is shown only after.
+3. `auditSentMessage` reads the page back after sending and looks for any value we
+   believed we replaced. It cannot prevent a leak, only detect one — but a detected leak
+   is recoverable and a silent one is not.
+
+Never reorder these so that the toast or the send precedes verification.
