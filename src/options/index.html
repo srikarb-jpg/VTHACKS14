@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Prompt Firewall</title>
+    <style>
+      :root {
+        --bg: #0f1115; --card: #16181d; --line: #262a33;
+        --fg: #e8eaed; --muted: #9aa1ad; --accent: #3b6fd4; --warn: #f0b429;
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; background: var(--bg); color: var(--fg);
+        font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif;
+      }
+      .wrap { max-width: 900px; margin: 0 auto; padding: 32px 20px 64px; }
+      h1 { font-size: 20px; margin: 0 0 4px; }
+      h2 { font-size: 15px; margin: 32px 0 12px; font-weight: 600; }
+      .sub { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+      .stat { font-size: 28px; font-weight: 650; letter-spacing: -0.02em; }
+      .label { color: var(--muted); font-size: 12px; margin-top: 4px; }
+      .row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+      .row:last-child { border-bottom: 0; }
+      .note { color: var(--muted); font-size: 12px; line-height: 1.55; }
+      textarea {
+        width: 100%; min-height: 90px; background: #0b0d11; color: var(--fg);
+        border: 1px solid var(--line); border-radius: 8px; padding: 10px;
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical;
+      }
+      .toks { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 12px; }
+      .tk { padding: 1px 5px; border-radius: 4px; font: 12px ui-monospace, monospace; white-space: pre; }
+      button {
+        font: inherit; font-size: 13px; padding: 7px 13px; border-radius: 7px;
+        border: 1px solid var(--line); background: #23262e; color: var(--fg); cursor: pointer;
+      }
+      button:hover { background: #2c3039; }
+      a { color: #7aa5ee; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Prompt Firewall</h1>
+      <p class="sub">Everything on this page was computed on this machine. No account, no server, no sync.</p>
+
+      <h2>This week</h2>
+      <div class="grid" id="stats"></div>
+
+      <h2>What was caught</h2>
+      <div class="card" id="breakdown"></div>
+      <p class="note" style="margin-top: 8px">
+        Types only. The values themselves are never written to disk — the mapping lives in
+        memory for the life of the tab and is discarded.
+      </p>
+
+      <h2>Estimated tokens avoided</h2>
+      <div class="card" id="energy"></div>
+
+      <h2>Tokenizer</h2>
+      <p class="sub">What the model actually charges for. Type and watch it split.</p>
+      <div class="card">
+        <textarea id="tok-input" spellcheck="false">Prompt Firewall keeps your data on your machine.</textarea>
+        <div class="toks" id="tok-out"></div>
+        <div class="label" id="tok-count"></div>
+      </div>
+
+      <h2>Settings</h2>
+      <div class="card" id="settings"></div>
+
+      <h2>Receipt</h2>
+      <div class="card">
+        <button id="copy-receipt">Copy shareable summary</button>
+        <span class="label" id="receipt-status" style="margin-left: 10px"></span>
+      </div>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

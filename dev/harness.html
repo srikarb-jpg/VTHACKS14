@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Prompt Firewall — UI harness</title>
+    <style>
+      body {
+        margin: 0; min-height: 100vh; background: #1b1d22; color: #e8eaed;
+        font: 14px/1.5 ui-sans-serif, system-ui, sans-serif;
+        display: flex; flex-direction: column; gap: 14px; padding: 28px;
+      }
+      h1 { font-size: 16px; margin: 0; font-weight: 600; }
+      p { margin: 0; color: #9aa1ad; font-size: 13px; max-width: 60ch; }
+      .bar { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+      button {
+        font: inherit; font-size: 13px; padding: 7px 13px; border-radius: 7px;
+        border: 1px solid #343945; background: #23262e; color: #e8eaed; cursor: pointer;
+      }
+      button:hover { background: #2c3039; }
+    </style>
+  </head>
+  <body>
+    <h1>UI harness</h1>
+    <p>
+      Renders every overlay component against fixed fake data, with no extension and no chat
+      site involved. This exists so the UI can be built and reviewed in parallel with the
+      composer adapter — run <code>npm run dev</code> and open this file through the dev server.
+    </p>
+    <div class="bar">
+      <button data-show="toast">Toast</button>
+      <button data-show="diff">Redaction diff</button>
+      <button data-show="block">Classification block</button>
+      <button data-show="chip">Routing chip</button>
+    </div>
+    <script type="module" src="./harness.ts"></script>
+  </body>
+</html>
