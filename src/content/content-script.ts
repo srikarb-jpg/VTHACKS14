@@ -25,7 +25,7 @@ import {
 import { redact, revertOne } from '../worker/redact';
 import { sendToBackground } from '../shared/messages';
 import { SUBMIT_LATENCY_BUDGET_MS, TYPING_DEBOUNCE_MS } from '../shared/config';
-import type { Finding, Placeholder, Settings, UsageEvent } from '../shared/types';
+import type { Finding, Placeholder, Settings } from '../shared/types';
 import { ClaudeAdapter } from './adapters/claude';
 import { SubmitGate, type GateVerdict } from './gate';
 import { route, worthSuggesting } from './router';
@@ -54,6 +54,7 @@ import type { NerSpan } from '../shared/ner';
 import { applyConfirmations, isConfirmed, toggleConfirmed } from './confirmed';
 import { splitStable, hash } from '../worker/chunks';
 import { nerSpansToFindings } from '../worker/ner-map';
+import { buildUsageEvent } from '../worker/usage-event';
 import { resolveOverlaps } from '../worker/detectors';
 
 const adapter = new ClaudeAdapter();
@@ -75,8 +76,6 @@ let settings: Settings = {
   nerAutoRedactMinScore: 0.7,
 };
 
-/** Crude token estimate. Four characters per token is the usual rule of thumb. */
-const estimateTokens = (s: string): number => Math.ceil(s.length / 4);
 
 /**
  * Both autopilot and strict redact down to the medium tier. The difference
@@ -330,19 +329,16 @@ async function logUsage(
   placeholders: Placeholder[],
   blocked: boolean,
 ): Promise<void> {
-  const redactions: UsageEvent['redactions'] = {};
-  for (const p of placeholders) redactions[p.kind] = (redactions[p.kind] ?? 0) + 1;
   await sendToBackground({
     type: 'usage:record',
-    event: {
-      timestamp: Date.now(),
+    event: buildUsageEvent({
       host: adapter.site,
       lane: route(text).lane,
       blocked,
-      redactions,
-      promptTokens: estimateTokens(text),
+      placeholders,
+      text,
       scanMs,
-    },
+    }),
   });
 }
 
