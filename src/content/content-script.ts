@@ -29,7 +29,12 @@ import type { Finding, Placeholder, Settings } from '../shared/types';
 import { ClaudeAdapter } from './adapters/claude';
 import { SubmitGate, type GateVerdict } from './gate';
 import { route, worthSuggesting } from './router';
-import { startRehydration, setRevealAll, setWrappedCountHandler } from './rehydrate';
+import {
+  startRehydration,
+  setRevealAll,
+  setWrappedCountHandler,
+  repaintReveals,
+} from './rehydrate';
 import { showWriteFailure, showLeakWarning } from './ui/alerts';
 import {
   showRevealToggle,
@@ -653,6 +658,9 @@ async function boot(): Promise<void> {
   // text invalidates them. Redraw from the cached map rather than rescanning.
   const redraw = (): void => {
     if (lastMap && lastLive.length) renderHighlights(lastMap, lastLive);
+    // Revealed values are drawn at viewport coordinates too, so they have
+    // to track the text the same way the underlines do.
+    repaintReveals();
   };
   // Settings are cached in this tab, so a change made on the options page
   // would otherwise not reach an already-open tab until it was reloaded.

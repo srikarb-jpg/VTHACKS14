@@ -45,7 +45,12 @@ export function getLayer(): HTMLDivElement {
 
   const host = document.createElement('div');
   host.id = HOST_ID;
-  const root = host.attachShadow({ mode: 'open' });
+  // CLOSED, not open. With mode:'open' the host page can reach our UI via
+  // host.shadowRoot and read everything in it -- including the diff panel,
+  // which renders the user's ORIGINAL unredacted text side by side. Closed
+  // mode is not a hard security boundary (a page that patches attachShadow
+  // before we run could still capture it) but it removes the trivial read.
+  const root = host.attachShadow({ mode: 'closed' });
 
   const style = document.createElement('style');
   style.textContent = BASE_CSS;

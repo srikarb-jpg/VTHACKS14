@@ -13,6 +13,7 @@
  */
 import type { Placeholder } from '../shared/types';
 import { PLACEHOLDER_PATTERN } from '../shared/config';
+import { getLayer } from './ui/shell';
 import type { ComposerAdapter } from './adapters/types';
 
 const MARKED = 'data-pf-rehydrated';
@@ -26,26 +27,67 @@ interface Wrapped {
   span: HTMLElement;
   token: string;
   value: string;
+  /** Per-span reveal, independent of the global toggle. */
+  shown: boolean;
 }
 const wrapped: Wrapped[] = [];
 let revealAll = false;
 
-function paint(w: Wrapped): void {
-  w.span.textContent = revealAll ? w.value : `[${w.token}]`;
-  w.span.style.background = revealAll ? '#16301f' : '#2a2118';
-  w.span.style.color = revealAll ? '#7ee2a8' : '#f0b429';
+/**
+ * Real values are drawn in OUR shadow layer, never written into the page.
+ *
+ * The obvious implementation -- swap the span's textContent to the real
+ * value -- hands the value straight to the host page's DOM, where the
+ * site's own JavaScript can read it with one querySelectorAll. That defeats
+ * the entire point: we redacted precisely so the recipient would not get
+ * this data. So the placeholder text in the page never changes, and the
+ * real value is painted on top, positioned with getClientRects exactly like
+ * the inline highlights.
+ */
+let overlay: HTMLElement | null = null;
+
+function overlayHost(): HTMLElement {
+  if (overlay?.isConnected) return overlay;
+  overlay = document.createElement('div');
+  overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;';
+  getLayer().append(overlay);
+  return overlay;
+}
+
+export function repaintReveals(): void {
+  const host = overlayHost();
+  const chips: HTMLElement[] = [];
+
+  for (const w of wrapped) {
+    if (!(revealAll || w.shown)) continue;
+    if (!w.span.isConnected) continue;
+    const rect = w.span.getBoundingClientRect();
+    if (rect.width < 1 && rect.height < 1) continue;
+
+    const chip = document.createElement('span');
+    chip.textContent = w.value;
+    chip.style.cssText =
+      `position:fixed;left:${rect.left}px;top:${rect.top}px;` +
+      `min-width:${rect.width}px;height:${rect.height}px;` +
+      `display:inline-flex;align-items:center;padding:0 4px;` +
+      `background:#16301f;color:#7ee2a8;border-radius:3px;` +
+      `font:inherit;font-size:${getComputedStyle(w.span).fontSize};` +
+      `white-space:nowrap;pointer-events:none;`;
+    chips.push(chip);
+  }
+  host.replaceChildren(...chips);
 }
 
 /**
- * Flip every placeholder in the conversation between token and real value.
+ * Flip every placeholder between token and real value.
  *
  * Nothing is fetched and nothing is sent: the mapping has been in this
- * page's memory since the redaction happened. Revealing is a local
- * rendering choice, which is the whole point of redacting reversibly.
+ * page's memory since the redaction happened, and the revealed text is
+ * rendered in our own shadow root rather than in the conversation.
  */
 export function setRevealAll(on: boolean): void {
   revealAll = on;
-  for (const w of wrapped) paint(w);
+  repaintReveals();
 }
 
 export function revealedCount(): number {
@@ -72,20 +114,20 @@ function wrap(textNode: Text, placeholders: Map<string, Placeholder>): void {
 
     const span = document.createElement('span');
     span.setAttribute(MARKED, '');
-    span.title = `${known.value} — click to toggle`;
-    span.style.cssText = 'border-radius:3px;padding:0 3px;cursor:pointer;transition:all .12s;';
+    span.textContent = m[0];
+    // Deliberately NOT the real value. A title attribute is readable by the
+    // host page at any time, so putting it here would leak every mapping
+    // passively, without the user ever revealing anything.
+    span.title = 'Redacted — click to reveal locally';
+    span.style.cssText =
+      'background:#2a2118;color:#f0b429;border-radius:3px;padding:0 3px;cursor:pointer;';
 
-    const entry: Wrapped = { span, token, value: known.value };
+    const entry: Wrapped = { span, token, value: known.value, shown: false };
     wrapped.push(entry);
-    paint(entry);
 
-    // Individual click still works, for revealing one value on a projector
-    // without exposing the rest.
     span.addEventListener('click', () => {
-      const showing = span.textContent === known.value;
-      span.textContent = showing ? `[${token}]` : known.value;
-      span.style.background = showing ? '#2a2118' : '#16301f';
-      span.style.color = showing ? '#f0b429' : '#7ee2a8';
+      entry.shown = !entry.shown;
+      repaintReveals();
     });
     frag.append(span);
     cursor = m.index + m[0].length;
