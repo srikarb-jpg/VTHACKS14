@@ -46,6 +46,13 @@
       <h1>Prompt Firewall</h1>
       <p class="sub">Everything on this page was computed on this machine. No account, no server, no sync.</p>
 
+      <h2>Local AI detection</h2>
+      <p class="sub">
+        A transformer that finds names, organizations and other free-text details regex cannot.
+        Runs entirely on this machine. Enabling it downloads the model once.
+      </p>
+      <div class="card" id="ner"></div>
+
       <h2>This week</h2>
       <div class="grid" id="stats"></div>
 
@@ -66,13 +73,6 @@
         <div class="toks" id="tok-out"></div>
         <div class="label" id="tok-count"></div>
       </div>
-
-      <h2>Local AI detection</h2>
-      <p class="sub">
-        A transformer that finds names, organizations and other free-text details regex cannot.
-        Runs entirely on this machine. Enabling it downloads the model once.
-      </p>
-      <div class="card" id="ner"></div>
 
       <h2>Settings</h2>
       <div class="card" id="settings"></div>

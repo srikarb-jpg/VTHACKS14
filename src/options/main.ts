@@ -8,6 +8,7 @@
  */
 import { sendToBackground } from '../shared/messages';
 import type { FindingKind, Settings, UsageEvent } from '../shared/types';
+import type { Probe } from '../shared/ner';
 import { tokenColor, tokenize } from './tokenizer';
 
 const WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -194,7 +195,24 @@ async function renderNer(): Promise<void> {
   const host = $('ner');
   host.innerHTML = '<div class="note">Checking this machine…</div>';
 
-  const { probe, loaded, error } = await sendToBackground({ type: 'ner:probe' });
+  let probe: Probe;
+  let loaded = false;
+  let error: string | null = null;
+  try {
+    const res = await sendToBackground({ type: 'ner:probe' });
+    probe = res.probe;
+    loaded = res.loaded;
+    error = res.error;
+  } catch (err) {
+    // Most likely the offscreen document failed to be created at all. Say
+    // so, rather than leaving the panel stuck on "Checking this machine".
+    host.innerHTML =
+      `<div class="note" style="color:#ff9c9c">Could not reach the detection host.</div>` +
+      `<div class="note" style="margin-top:6px">${String(err)}</div>` +
+      `<div class="note" style="margin-top:6px">Check chrome://extensions &rarr; Prompt Firewall &rarr; ` +
+      `<em>Inspect views: offscreen</em> for the underlying error. Pattern detection is unaffected.</div>`;
+    return;
+  }
 
   const row = (k: string, v: string): string =>
     `<div class="row"><span>${k}</span><strong>${v}</strong></div>`;
@@ -246,6 +264,10 @@ async function renderNer(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  // First, and not awaited alongside anything slower: this panel is the one
+  // the user is looking for right now.
+  void renderNer();
+
   const { events } = await sendToBackground({ type: 'usage:query', sinceMs: WINDOW_MS });
   renderStats(events);
   renderBreakdown(events);
@@ -253,7 +275,6 @@ async function main(): Promise<void> {
   renderTokenizer();
   wireReceipt(events);
   await renderSettings();
-  await renderNer();
 }
 
 void main();
