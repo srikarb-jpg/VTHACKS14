@@ -96,12 +96,36 @@ function wrap(textNode: Text, placeholders: Map<string, Placeholder>): void {
   textNode.replaceWith(frag);
 }
 
-function walk(root: HTMLElement, placeholders: Map<string, Placeholder>): void {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+/**
+ * Find placeholder text anywhere on the page, rather than trusting a
+ * selector for "the assistant's message".
+ *
+ * The original version walked nodes matched by three guessed selectors. When
+ * a site changes its markup those match nothing, rehydration silently does
+ * nothing, and the reveal toggle appears broken. Placeholders are a
+ * distinctive shape -- [PERSON_1] -- so scanning the document and skipping
+ * the parts we must not touch is both simpler and far more durable.
+ */
+const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA', 'INPUT']);
+
+function walk(root: HTMLElement, placeholders: Map<string, Placeholder>, skip: Element[]): void {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentElement;
+      if (!parent) return NodeFilter.FILTER_REJECT;
+      if (SKIP_TAGS.has(parent.tagName)) return NodeFilter.FILTER_REJECT;
+      // Never touch our own UI, and never touch the composer -- rewriting
+      // text the user is editing would corrupt the editor.
+      if (skip.some((s) => s.contains(parent))) return NodeFilter.FILTER_REJECT;
+      if (parent.hasAttribute(MARKED)) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+
   const nodes: Text[] = [];
   let n = walker.nextNode();
   while (n) {
-    if (!(n.parentElement?.hasAttribute(MARKED) ?? false)) nodes.push(n as Text);
+    nodes.push(n as Text);
     n = walker.nextNode();
   }
   for (const node of nodes) wrap(node, placeholders);
@@ -112,6 +136,13 @@ function walk(root: HTMLElement, placeholders: Map<string, Placeholder>): void {
  * Runs on a settle delay rather than per mutation so we never wrap a token
  * that has only half arrived.
  */
+let onCountChange: ((n: number) => void) | null = null;
+
+/** Notified when more placeholders become visible, so the toggle can update. */
+export function setWrappedCountHandler(fn: (n: number) => void): void {
+  onCountChange = fn;
+}
+
 export function startRehydration(
   adapter: ComposerAdapter,
   getPlaceholders: () => Promise<Placeholder[]>,
@@ -125,7 +156,22 @@ export function startRehydration(
         const list = await getPlaceholders();
         if (!list.length) return;
         const map = new Map(list.map((p) => [p.token, p]));
-        for (const node of adapter.getResponseNodes()) walk(node, map);
+
+        const skip: Element[] = [];
+        const composer = adapter.getComposer();
+        if (composer) skip.push(composer);
+        const ourHost = document.getElementById('prompt-firewall-root');
+        if (ourHost) skip.push(ourHost);
+
+        const before = wrapped.length;
+        walk(document.body, map, skip);
+        if (wrapped.length !== before) {
+          console.info(
+            `[prompt-firewall] rehydrate: wrapped ${wrapped.length - before} placeholder(s), ` +
+              `${wrapped.length} total`,
+          );
+          onCountChange?.(wrapped.length);
+        }
       })();
     }, 400);
   };

@@ -29,7 +29,7 @@ import type { Finding, Placeholder, Settings, UsageEvent } from '../shared/types
 import { ClaudeAdapter } from './adapters/claude';
 import { SubmitGate, type GateVerdict } from './gate';
 import { route, worthSuggesting } from './router';
-import { startRehydration, setRevealAll } from './rehydrate';
+import { startRehydration, setRevealAll, setWrappedCountHandler } from './rehydrate';
 import { showWriteFailure, showLeakWarning } from './ui/alerts';
 import {
   showRevealToggle,
@@ -144,7 +144,6 @@ const localPlaceholders = new Map<string, Placeholder>();
 
 function rememberPlaceholders(ps: Placeholder[]): void {
   for (const p of ps) localPlaceholders.set(p.token, p);
-  showRevealToggle(localPlaceholders.size);
 }
 
 /** NER findings, but only if they were computed for exactly this text. */
@@ -602,9 +601,6 @@ function onPaste(e: ClipboardEvent): void {
   const pasted = e.clipboardData?.getData('text/plain');
   if (!pasted || pasted.trim().length < 3) return;
 
-  // Warm the cache with the pasted text immediately, then rescan the whole
-  // composer once the paste has actually landed in the DOM.
-  scanner.scan(pasted);
   const hits = fullScan(pasted).findings;
   if (hits.length) {
     console.info(
@@ -612,7 +608,26 @@ function onPaste(e: ClipboardEvent): void {
       hits.map((f) => f.label),
     );
   }
-  window.setTimeout(() => advisoryScan(), 0);
+
+  // The paste has NOT landed in the DOM yet, and a setTimeout(0) fires
+  // before ProseMirror has applied it -- which made the scan read the text
+  // from before the paste, and left NER running on stale content. Poll
+  // briefly until the composer actually contains the pasted text, then
+  // scan. Bounded so a paste the editor rejects cannot spin.
+  const before = adapter.readText();
+  let tries = 0;
+  const check = (): void => {
+    const now = adapter.readText();
+    if (now !== before || tries++ > 20) {
+      // Bypass the debounce and the staleness guard: pasted text is
+      // complete by definition, so there is nothing to wait for.
+      lastScanAt = 0;
+      advisoryScan();
+      return;
+    }
+    window.setTimeout(check, 25);
+  };
+  window.setTimeout(check, 25);
 }
 
 // ---------------------------------------------------------------------------
@@ -682,6 +697,10 @@ async function boot(): Promise<void> {
   );
 
   setRevealHandler((on) => setRevealAll(on));
+  // The toggle is only useful once something on the page has actually been
+  // wrapped. Counting placeholders we hold would show a button that does
+  // nothing when the response contains no tokens.
+  setWrappedCountHandler((n) => showRevealToggle(n));
 
   startRehydration(adapter, async () => {
     // Prefer this page's own copy; fall back to the vault, which may have
@@ -690,7 +709,6 @@ async function boot(): Promise<void> {
     try {
       const r = await sendToBackground({ type: 'vault:get' });
       for (const p of r.placeholders) localPlaceholders.set(p.token, p);
-      if (r.placeholders.length) showRevealToggle(localPlaceholders.size);
       return r.placeholders;
     } catch {
       return [];
