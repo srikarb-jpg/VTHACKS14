@@ -37,6 +37,12 @@ export type OffscreenRequest =
 export type OffscreenResponse =
   | { type: 'ner:probe-result'; probe: Probe; loaded: boolean; error: string | null }
   | { type: 'ner:loaded'; ok: boolean; error: string | null }
-  | { type: 'ner:spans'; spans: NerSpan[][]; error: string | null }
+  | {
+      type: 'ner:spans';
+      spans: NerSpan[][];
+      /** Pure model time inside the offscreen document. */
+      inferMs: number;
+      error: string | null;
+    }
   | { type: 'ner:selftest-result'; ms: number; spans: NerSpan[]; provider: string; error: string | null }
   | { type: 'ner:error'; error: string };

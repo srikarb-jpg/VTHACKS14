@@ -35,7 +35,7 @@ import { showDiff, closeDiff } from './ui/diff';
 import { showBlockPanel } from './ui/cui-block';
 import { showChip, dismissChip } from './ui/chip';
 import { showReady } from './ui/ready';
-import { renderLive, hideLive, setNerState } from './ui/live';
+import { renderLive, hideLive, setNerState, setNerTiming } from './ui/live';
 import {
   renderHighlights,
   clearHighlights,
@@ -332,11 +332,24 @@ async function runNer(text: string): Promise<void> {
       return null;
     });
 
+    let timing = '';
     if (dirty.length > 0) {
+      const t0 = performance.now();
       const res = await sendToBackground({
         type: 'ner:detect',
         texts: dirty.map((d) => d.text),
       });
+      const totalMs = performance.now() - t0;
+      // Three nested measurements. Model time is inferMs; the gap up to
+      // roundTripMs is background<->offscreen messaging; the gap up to
+      // totalMs is content<->background, including waking the service
+      // worker. Whichever dominates is the thing to fix.
+      timing =
+        ` | infer ${res.inferMs.toFixed(0)}ms` +
+        ` + offscreen-msg ${(res.roundTripMs - res.inferMs).toFixed(0)}ms` +
+        ` + sw-msg ${(totalMs - res.roundTripMs).toFixed(0)}ms` +
+        ` = ${totalMs.toFixed(0)}ms`;
+      setNerTiming(Math.round(res.inferMs), Math.round(totalMs));
       if (res.error) {
         console.warn('[prompt-firewall] ner error', res.error);
         setNerState({ error: res.error });
@@ -362,7 +375,7 @@ async function runNer(text: string): Promise<void> {
     setNerState({ spans: nerFindings.length });
     console.info(
       `[prompt-firewall] ner: ${chunks.length} chunks, ${dirty.length} sent, ` +
-        `${all.length} spans -> ${nerFindings.length} findings`,
+        `${all.length} spans -> ${nerFindings.length} findings${timing}`,
     );
     repaintWithNer();
   } catch (err) {

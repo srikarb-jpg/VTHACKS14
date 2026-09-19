@@ -71,7 +71,15 @@ export type ToBackground =
 export type FromBackground =
   | { type: 'ner:probe-result'; probe: Probe; loaded: boolean; error: string | null }
   | { type: 'ner:loaded'; ok: boolean; error: string | null }
-  | { type: 'ner:spans'; spans: NerSpan[][]; error: string | null }
+  | {
+      type: 'ner:spans';
+      spans: NerSpan[][];
+      /** Model time only. */
+      inferMs: number;
+      /** Model time plus the background->offscreen messaging round trip. */
+      roundTripMs: number;
+      error: string | null;
+    }
   | { type: 'ner:selftest-result'; ms: number; spans: NerSpan[]; provider: string; error: string | null }
   | { type: 'vault:contents'; placeholders: Placeholder[] }
   | { type: 'usage:rows'; events: UsageEvent[] }

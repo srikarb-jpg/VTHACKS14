@@ -63,6 +63,14 @@ function ensure(): { body: HTMLElement; statLine: HTMLElement } {
 export type NerState = 'off' | 'waiting' | 'running' | { spans: number } | { error: string };
 
 let nerState: NerState = 'off';
+let nerInferMs = 0;
+let nerTotalMs = 0;
+
+/** Last measured model time and end-to-end time, for the stats line. */
+export function setNerTiming(inferMs: number, totalMs: number): void {
+  nerInferMs = inferMs;
+  nerTotalMs = totalMs;
+}
 
 export function setNerState(s: NerState): void {
   nerState = s;
@@ -73,7 +81,8 @@ function nerLabel(): string {
   if (nerState === 'waiting') return 'ner idle';
   if (nerState === 'running') return 'ner running…';
   if ('error' in nerState) return `ner error: ${nerState.error.slice(0, 40)}`;
-  return `ner ${nerState.spans} span${nerState.spans === 1 ? '' : 's'}`;
+  const timing = nerTotalMs ? ` (${nerInferMs}ms model / ${nerTotalMs}ms total)` : '';
+  return `ner ${nerState.spans} span${nerState.spans === 1 ? '' : 's'}${timing}`;
 }
 
 export function renderLive(findings: LiveFinding[], stats: ScanStats, textLength: number): void {

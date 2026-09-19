@@ -81,10 +81,21 @@ async function handle(msg: ToBackground, tabId: number | undefined): Promise<Fro
     }
 
     case 'ner:detect': {
+      // Timed here so the content script can tell model cost apart from
+      // messaging cost. A cold service worker or a stalled offscreen
+      // document shows up as roundTrip >> infer.
+      const t0 = performance.now();
       const r = await askOffscreen({ type: 'ner:detect', texts: msg.texts, threshold: msg.threshold });
+      const roundTripMs = performance.now() - t0;
       return r.type === 'ner:spans'
-        ? r
-        : { type: 'ner:spans', spans: [], error: r.type === 'ner:error' ? r.error : 'unexpected' };
+        ? { ...r, roundTripMs }
+        : {
+            type: 'ner:spans',
+            spans: [],
+            inferMs: 0,
+            roundTripMs,
+            error: r.type === 'ner:error' ? r.error : 'unexpected',
+          };
     }
 
     case 'badge:increment':

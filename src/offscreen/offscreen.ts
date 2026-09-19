@@ -157,9 +157,9 @@ async function detect(
   texts: string[],
   entities: string[],
   threshold: number,
-): Promise<NerSpan[][]> {
+): Promise<{ spans: NerSpan[][]; inferMs: number }> {
   await ensureModel();
-  if (!model || texts.length === 0) return texts.map(() => []);
+  if (!model || texts.length === 0) return { spans: texts.map(() => []), inferMs: 0 };
 
   const started = performance.now();
   const out = await withTimeout(
@@ -173,15 +173,18 @@ async function detect(
       `for ${texts.length} chunk(s) / ${chars} chars`,
   );
 
-  return texts.map((_, i) =>
-    (out[i] ?? []).map((e) => ({
-      start: e.start,
-      end: e.end,
-      label: e.label,
-      score: e.score,
-      text: e.spanText,
-    })),
-  );
+  return {
+    inferMs: performance.now() - started,
+    spans: texts.map((_, i) =>
+      (out[i] ?? []).map((e) => ({
+        start: e.start,
+        end: e.end,
+        label: e.label,
+        score: e.score,
+        text: e.spanText,
+      })),
+    ),
+  };
 }
 
 chrome.runtime.onMessage.addListener(
@@ -203,7 +206,8 @@ chrome.runtime.onMessage.addListener(
           case 'ner:selftest': {
             const sample = 'Amanda Britfield was my manager at Microsoft.';
             const t0 = performance.now();
-            const spans = (await detect([sample], DEFAULT_ENTITIES, 0.4))[0] ?? [];
+            const r = await detect([sample], DEFAULT_ENTITIES, 0.4);
+            const spans = r.spans[0] ?? [];
             reply({
               type: 'ner:selftest-result',
               ms: performance.now() - t0,
@@ -213,13 +217,11 @@ chrome.runtime.onMessage.addListener(
             });
             return;
           }
-          case 'ner:detect':
-            reply({
-              type: 'ner:spans',
-              spans: await detect(msg.texts, msg.entities ?? DEFAULT_ENTITIES, msg.threshold ?? 0.5),
-              error: null,
-            });
+          case 'ner:detect': {
+            const r = await detect(msg.texts, msg.entities ?? DEFAULT_ENTITIES, msg.threshold ?? 0.5);
+            reply({ type: 'ner:spans', spans: r.spans, inferMs: r.inferMs, error: null });
             return;
+          }
           default:
             reply({ type: 'ner:error', error: 'unknown request' });
         }
