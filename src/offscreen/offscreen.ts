@@ -112,7 +112,11 @@ async function ensureModel(): Promise<void> {
     const caps = await probe();
     if (!caps.wasm) throw new Error(caps.error ?? 'WebAssembly unavailable');
 
+    // Phase timing: the remedies for "bundle parse" and "ONNX session
+    // creation" are completely different, so measure them apart.
+    const tImport = performance.now();
     const { Gliner } = await import('gliner');
+    const importMs = performance.now() - tImport;
 
     const variant = PREFER_WEBGPU && caps.webgpu ? VARIANTS.webgpu : VARIANTS.wasm;
     console.info(`[prompt-firewall:offscreen] loading ${variant.file} on ${variant.provider}`);
@@ -135,9 +139,15 @@ async function ensureModel(): Promise<void> {
       modelType: 'span-level',
     });
 
+    const tInit = performance.now();
     await instance.initialize();
+    const initMs = performance.now() - tInit;
     model = instance;
     activeProvider = variant.provider;
+    console.info(
+      `[prompt-firewall:offscreen] load: import ${importMs.toFixed(0)}ms + ` +
+        `initialize ${initMs.toFixed(0)}ms (fetch + ONNX session creation)`,
+    );
     lastError = null;
   })();
 

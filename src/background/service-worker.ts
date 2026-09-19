@@ -11,9 +11,49 @@ import * as settings from './settings';
 import * as usage from './usage';
 import * as vault from './vault';
 import { askOffscreen } from './offscreen';
+import { SUPPORTED_HOSTS } from '../shared/config';
 
 chrome.action.onClicked.addListener(() => {
   void chrome.runtime.openOptionsPage();
+});
+
+/**
+ * Preload the model.
+ *
+ * The first load costs ~16 s: reading ~183 MB back and having ONNX Runtime
+ * build an InferenceSession from it. That cost is unavoidable, but WHEN it
+ * is paid is entirely up to us, and paying it while the user is mid-sentence
+ * is the worst possible choice.
+ *
+ * So we start it as soon as we have any reason to think it will be wanted:
+ * at browser startup, on install, and whenever a supported chat page opens.
+ * By the time anyone has typed a sentence it is resident, and the keepalive
+ * holds it there.
+ *
+ * Deliberately only when the user has already opted in -- this must never
+ * trigger the download on its own.
+ */
+async function preloadIfEnabled(why: string): Promise<void> {
+  const s = await settings.get();
+  if (!s.enabled || !s.nerEnabled) return;
+  console.info(`[prompt-firewall] preloading model (${why})`);
+  const t0 = performance.now();
+  const r = await askOffscreen({ type: 'ner:load' });
+  console.info(
+    `[prompt-firewall] preload ${r.type === 'ner:loaded' && r.ok ? 'ready' : 'failed'} ` +
+      `in ${(performance.now() - t0).toFixed(0)}ms`,
+  );
+}
+
+chrome.runtime.onStartup.addListener(() => void preloadIfEnabled('browser startup'));
+chrome.runtime.onInstalled.addListener(() => void preloadIfEnabled('install/update'));
+
+// A supported chat page opening is the strongest signal the model is about
+// to be needed.
+chrome.tabs.onUpdated.addListener((_id, info, tab) => {
+  if (info.status !== 'loading' || !tab.url) return;
+  if (!SUPPORTED_HOSTS.some((h) => tab.url?.includes(h))) return;
+  void preloadIfEnabled('chat page opened');
 });
 
 async function handle(msg: ToBackground, tabId: number | undefined): Promise<FromBackground> {
