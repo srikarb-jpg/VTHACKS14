@@ -5,6 +5,9 @@
   "type": "module",
   "description": "Local-only prompt scrubber and router for AI chat sites.",
   "scripts": {
+    "train:binary-router": "node scripts/binary-router.mjs train",
+    "test:binary-router": "node --expose-gc scripts/binary-router.mjs test",
+    "bench:memory": "node scripts/memory-bench.mjs",
     "dev": "vite",
     "build": "npm run sync-ort && tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",

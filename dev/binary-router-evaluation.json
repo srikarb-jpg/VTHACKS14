@@ -1,0 +1,206 @@
+{
+  "synthetic": true,
+  "trainCount": 48,
+  "validation": {
+    "accuracy": 1,
+    "falseSearch": 0,
+    "frontierCount": 6,
+    "perLabel": {
+      "searchable": {
+        "total": 6,
+        "correct": 6
+      },
+      "frontier": {
+        "total": 6,
+        "correct": 6
+      }
+    },
+    "predictions": [
+      {
+        "text": "Who painted the Mona Lisa?",
+        "expected": "searchable",
+        "predicted": "searchable",
+        "searchScore": 0.8860833134003795
+      },
+      {
+        "text": "Define entropy.",
+        "expected": "searchable",
+        "predicted": "searchable",
+        "searchScore": 0.7191789518217088
+      },
+      {
+        "text": "How many inches are in a foot?",
+        "expected": "searchable",
+        "predicted": "searchable",
+        "searchScore": 0.8875192318410994
+      },
+      {
+        "text": "Find the official Rust installation guide.",
+        "expected": "searchable",
+        "predicted": "searchable",
+        "searchScore": 0.7897778090647642
+      },
+      {
+        "text": "How do I reset my browser zoom?",
+        "expected": "searchable",
+        "predicted": "searchable",
+        "searchScore": 0.9451405742698822
+      },
+      {
+        "text": "What time is sunset in Seattle today?",
+        "expected": "searchable",
+        "predicted": "searchable",
+        "searchScore": 0.8123479761323965
+      },
+      {
+        "text": "Make this reply friendlier: Your payment is overdue.",
+        "expected": "frontier",
+        "predicted": "frontier",
+        "searchScore": 0.06569834641209019
+      },
+      {
+        "text": "Diagnose this intermittent deadlock.",
+        "expected": "frontier",
+        "predicted": "frontier",
+        "searchScore": 0.0692535982489023
+      },
+      {
+        "text": "What is wrong with this mathematical proof?",
+        "expected": "frontier",
+        "predicted": "frontier",
+        "searchScore": 0.02142203611936501
+      },
+      {
+        "text": "Create an original screenplay.",
+        "expected": "frontier",
+        "predicted": "frontier",
+        "searchScore": 0.2513362060405229
+      },
+      {
+        "text": "Extract action items from these notes: Lee will book the room.",
+        "expected": "frontier",
+        "predicted": "frontier",
+        "searchScore": 0.23231134671518344
+      },
+      {
+        "text": "How should we balance consistency and availability in our system?",
+        "expected": "frontier",
+        "predicted": "frontier",
+        "searchScore": 0.056551240145989556
+      }
+    ]
+  },
+  "test": {
+    "accuracy": 1,
+    "falseSearch": 0,
+    "frontierCount": 8,
+    "perLabel": {
+      "searchable": {
+        "total": 8,
+        "correct": 8
+      },
+      "frontier": {
+        "total": 8,
+        "correct": 8
+      }
+    },
+    "predictions": [
+      {
+        "text": "What is the capital of Portugal?",
+        "expected": "searchable",
+        "predicted": "searchable",
+        "searchScore": 0.9716337932974054
+      },
+      {
+        "text": "Who discovered penicillin?",
+        "expected": "searchable",
+        "predicted": "searchable",
+        "searchScore": 0.8824803622684199
+      },
+      {
+        "text": "Convert five miles to kilometers.",
+        "expected": "searchable",
+        "predicted": "searchable",
+        "searchScore": 0.8705127375735601
+      },
+      {
+        "text": "Find the official timetable for the airport shuttle.",
+        "expected": "searchable",
+        "predicted": "searchable",
+        "searchScore": 0.7730783556803646
+      },
+      {
+        "text": "How do I enable dark mode in Chrome?",
+        "expected": "searchable",
+        "predicted": "searchable",
+        "searchScore": 0.8827055253457181
+      },
+      {
+        "text": "What does DNS stand for?",
+        "expected": "searchable",
+        "predicted": "searchable",
+        "searchScore": 0.8772025051501794
+      },
+      {
+        "text": "When did the Berlin Wall fall?",
+        "expected": "searchable",
+        "predicted": "searchable",
+        "searchScore": 0.8268568301264935
+      },
+      {
+        "text": "What is the boiling point of water at sea level?",
+        "expected": "searchable",
+        "predicted": "searchable",
+        "searchScore": 0.9535070917055167
+      },
+      {
+        "text": "Please soften this reply: You missed the deadline.",
+        "expected": "frontier",
+        "predicted": "frontier",
+        "searchScore": 0.171941478670432
+      },
+      {
+        "text": "Summarize: Hiring is paused. The budget was approved.",
+        "expected": "frontier",
+        "predicted": "frontier",
+        "searchScore": 0.22983465647875223
+      },
+      {
+        "text": "Debug this failing JavaScript request handler.",
+        "expected": "frontier",
+        "predicted": "frontier",
+        "searchScore": 0.4575302235368191
+      },
+      {
+        "text": "Design a fault-tolerant message broker.",
+        "expected": "frontier",
+        "predicted": "frontier",
+        "searchScore": 0.015767645547913267
+      },
+      {
+        "text": "What is wrong with this proof of the Riemann hypothesis?",
+        "expected": "frontier",
+        "predicted": "frontier",
+        "searchScore": 0.10708601002011259
+      },
+      {
+        "text": "Rewrite this distributed algorithm to survive network partitions.",
+        "expected": "frontier",
+        "predicted": "frontier",
+        "searchScore": 0.027493617361315205
+      },
+      {
+        "text": "Generate a fantasy story with intersecting timelines.",
+        "expected": "frontier",
+        "predicted": "frontier",
+        "searchScore": 0.19873776209580812
+      },
+      {
+        "text": "Sort these names alphabetically: Zoe, Ben, Alice.",
+        "expected": "frontier",
+        "predicted": "frontier",
+        "searchScore": 0.190969750527386
+      }
+    ]
+  }
+}
