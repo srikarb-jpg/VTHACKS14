@@ -19,6 +19,7 @@
  * cause of a demo failure.
  */
 import type { ComposerAdapter } from './types';
+import { buildTextMap, type TextMap } from '../textmap';
 
 const COMPOSER_SELECTORS = [
   'div[contenteditable="true"].ProseMirror',
@@ -60,12 +61,17 @@ export class ClaudeAdapter implements ComposerAdapter {
     return composer?.closest('form') ?? composer?.parentElement ?? composer;
   }
 
-  readText(): string {
+  readTextMap(): TextMap | null {
     const el = this.getComposer();
-    if (!el) return '';
-    // innerText collapses ProseMirror's block structure into real newlines,
-    // which textContent does not.
-    return el.innerText.replace(/ /g, ' ').trimEnd();
+    return el ? buildTextMap(el) : null;
+  }
+
+  readText(): string {
+    // Deliberately NOT innerText. The text we scan has to be the same string
+    // the highlight offsets index into, and buildTextMap produces that
+    // string. trimEnd only removes trailing characters, so offsets for
+    // everything before it are unchanged.
+    return (this.readTextMap()?.text ?? '').trimEnd();
   }
 
   getCaretOffset(): number | null {

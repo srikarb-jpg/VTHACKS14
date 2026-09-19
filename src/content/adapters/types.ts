@@ -1,3 +1,5 @@
+import type { TextMap } from '../textmap';
+
 /**
  * The seam that makes a second chat site a day of work instead of a rewrite.
  *
@@ -13,6 +15,13 @@ export interface ComposerAdapter {
 
   /** Current plain text of the composer. */
   readText(): string;
+
+  /**
+   * The composer's text together with the DOM segments that produced it.
+   * Highlighting needs both, and they must come from one walk -- see
+   * textmap.ts for why deriving them separately silently misaligns.
+   */
+  readTextMap(): TextMap | null;
 
   /**
    * Replace the composer's entire contents. Returns false when every

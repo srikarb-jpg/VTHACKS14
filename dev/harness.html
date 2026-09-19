@@ -26,6 +26,22 @@
       site involved. This exists so the UI can be built and reviewed in parallel with the
       composer adapter — run <code>npm run dev</code> and open this file through the dev server.
     </p>
+    <div
+      id="composer"
+      contenteditable="true"
+      spellcheck="false"
+      style="
+        background: #0f1115; border: 1px solid #262a33; border-radius: 10px;
+        padding: 14px 16px; min-height: 140px; max-width: 720px; outline: none;
+        font: 15px/1.7 ui-sans-serif, system-ui, sans-serif; white-space: pre-wrap;
+      "
+    ><p>Type here. Try an email like dana@example.com, a card 4111 1111 1111 1111, or paste a key.</p></div>
+    <p style="max-width: 60ch">
+      Underlines are drawn in an overlay, not injected into this box — the same technique used
+      on the real site. Solid means settled; dashed and faint means the detector is still
+      tracking it. Click a solid underline to redact just that one item.
+    </p>
+
     <div class="bar">
       <button data-show="toast">Toast</button>
       <button data-show="diff">Redaction diff</button>

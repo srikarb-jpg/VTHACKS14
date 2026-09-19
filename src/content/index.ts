@@ -16,10 +16,15 @@
  * worker can be dropped back in without touching this file.
  */
 import { scan as fullScan } from '../worker/detectors';
-import { IncrementalScanner, markSettled, maxSeverity } from '../worker/incremental';
+import {
+  IncrementalScanner,
+  markSettled,
+  maxSeverity,
+  type LiveFinding,
+} from '../worker/incremental';
 import { redact, revertOne } from '../worker/redact';
 import { sendToBackground } from '../shared/messages';
-import { SUBMIT_LATENCY_BUDGET_MS, TYPING_DEBOUNCE_MS } from '../shared/config';
+import { SUBMIT_LATENCY_BUDGET_MS, TYPING_DEBOUNCE_MS, wrapToken } from '../shared/config';
 import type { Placeholder, Settings, UsageEvent } from '../shared/types';
 import { ClaudeAdapter } from './adapters/claude';
 import { SubmitGate, type GateVerdict } from './gate';
@@ -31,6 +36,12 @@ import { showBlockPanel } from './ui/cui-block';
 import { showChip, dismissChip } from './ui/chip';
 import { showReady } from './ui/ready';
 import { renderLive, hideLive } from './ui/live';
+import {
+  renderHighlights,
+  clearHighlights,
+  setHighlightHandler,
+} from './ui/highlights';
+import type { TextMap } from './textmap';
 
 const adapter = new ClaudeAdapter();
 
@@ -189,19 +200,30 @@ let idleHandle: number | undefined;
  * the scan for the main thread. Typing must never stutter -- if it does, the
  * ad-blocker premise fails no matter how good the detection is.
  */
+/** Kept so scroll and resize can redraw without rescanning. */
+let lastMap: TextMap | null = null;
+let lastLive: LiveFinding[] = [];
+
 function advisoryScan(): void {
   lastScanAt = performance.now();
-  const text = adapter.readText();
+  const map = adapter.readTextMap();
+  const text = (map?.text ?? '').trimEnd();
   if (text.trim().length < 3) {
     hideLive();
+    clearHighlights();
     dismissChip();
+    lastMap = null;
+    lastLive = [];
     return;
   }
 
   const { findings, stats } = scanner.scan(text);
   const caret = adapter.getCaretOffset();
   const live = markSettled(findings, text, caret);
+  lastMap = map;
+  lastLive = live;
   renderLive(live, stats, text.length);
+  if (map) renderHighlights(map, live);
 
   if (!settings.showRoutingChips) {
     dismissChip();
@@ -312,6 +334,21 @@ async function boot(): Promise<void> {
   document.addEventListener('input', onTyping, { capture: true });
   document.addEventListener('keyup', onTyping, { capture: true });
   document.addEventListener('paste', onPaste, { capture: true });
+
+  // Highlight rects are viewport coordinates, so anything that moves the
+  // text invalidates them. Redraw from the cached map rather than rescanning.
+  const redraw = (): void => {
+    if (lastMap && lastLive.length) renderHighlights(lastMap, lastLive);
+  };
+  window.addEventListener('scroll', redraw, { capture: true, passive: true });
+  window.addEventListener('resize', redraw, { passive: true });
+
+  // Clicking a settled highlight redacts just that one finding in place.
+  setHighlightHandler((f) => {
+    const text = adapter.readText();
+    const replaced = text.slice(0, f.start) + wrapToken(`${f.kind.toUpperCase()}_1`) + text.slice(f.end);
+    if (adapter.writeText(replaced)) advisoryScan();
+  });
   // Enter dismisses the routing chip and sends normally -- the chip never
   // intercepts the keystroke.
   document.addEventListener(
@@ -332,6 +369,7 @@ async function boot(): Promise<void> {
     dismissToast();
     dismissChip();
     hideLive();
+    clearHighlights();
   });
 
   // claude.ai is a single-page app, so the composer frequently does not
