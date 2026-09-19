@@ -9,9 +9,16 @@ export default defineConfig({
     sourcemap: true,
     target: 'esnext',
     rollupOptions: {
-      // The harness is a dev page, but building it keeps it from silently
-      // rotting when a component signature changes.
-      input: { harness: 'dev/harness.html' },
+      input: {
+        // The offscreen document's URL is passed to chrome.offscreen at
+        // runtime, so it never appears in the manifest and crxjs does not
+        // discover it. Without this entry it is silently absent from the
+        // build and createDocument fails with a 404.
+        offscreen: 'src/offscreen/index.html',
+        // The harness is a dev page, but building it keeps it from silently
+        // rotting when a component signature changes.
+        harness: 'dev/harness.html',
+      },
     },
   },
   server: {

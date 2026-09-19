@@ -100,6 +100,12 @@ export interface Settings {
   enabled: boolean;
   searchLaneEnabled: boolean;
   showRoutingChips: boolean;
+  /**
+   * Local AI detection. Off by default because enabling it downloads ~183 MB
+   * of model weights, which should be a deliberate choice rather than a
+   * surprise on someone's tethered connection.
+   */
+  nerEnabled: boolean;
 }
 
 /**

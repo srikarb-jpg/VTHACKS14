@@ -151,6 +151,11 @@ async function renderSettings(): Promise<void> {
     toggle('enabled', 'Enabled', 'Master switch.'),
     toggle('showRoutingChips', 'Routing hints', 'Suggest a cheaper lane. Never blocks Enter.'),
     toggle(
+      'nerEnabled',
+      'Local AI detection',
+      'Highlight names and organizations using the local model. Requires the download below.',
+    ),
+    toggle(
       'searchLaneEnabled',
       'Search lane',
       'Off by default. Turning this on sends a rewritten, scrubbed query to a third-party search API — the only outbound call this extension can make.',
@@ -179,6 +184,67 @@ function wireReceipt(events: UsageEvent[]): void {
   });
 }
 
+/**
+ * Local AI panel.
+ *
+ * Probes capability BEFORE offering the download, so a machine that cannot
+ * compile WASM says so in milliseconds instead of after fetching 183 MB.
+ */
+async function renderNer(): Promise<void> {
+  const host = $('ner');
+  host.innerHTML = '<div class="note">Checking this machine…</div>';
+
+  const { probe, loaded, error } = await sendToBackground({ type: 'ner:probe' });
+
+  const row = (k: string, v: string): string =>
+    `<div class="row"><span>${k}</span><strong>${v}</strong></div>`;
+
+  const backend = probe.webgpu ? 'WebGPU' : probe.wasm ? 'WebAssembly (CPU)' : 'unavailable';
+
+  host.innerHTML =
+    row('WebAssembly', probe.wasm ? 'available' : 'BLOCKED') +
+    row('WebGPU', probe.webgpu ? 'available' : 'not available') +
+    row('Backend that would be used', backend) +
+    row('Reported device memory', probe.deviceMemoryGb ? `${probe.deviceMemoryGb} GB` : 'unknown') +
+    row('Model', loaded ? 'loaded' : 'not loaded') +
+    (error ? `<div class="note" style="color:#ff9c9c;margin-top:8px">${error}</div>` : '');
+
+  if (!probe.wasm) {
+    host.insertAdjacentHTML(
+      'beforeend',
+      `<div class="note" style="margin-top:10px">
+         WebAssembly could not be compiled here, so local AI detection cannot run.
+         Pattern detection is unaffected and keeps working.
+       </div>`,
+    );
+    return;
+  }
+
+  const btn = document.createElement('button');
+  btn.textContent = loaded ? 'Reload model' : 'Download and enable (~183 MB, once)';
+  btn.style.marginTop = '12px';
+  const status = document.createElement('span');
+  status.className = 'label';
+  status.style.marginLeft = '10px';
+
+  btn.addEventListener('click', () => {
+    btn.disabled = true;
+    status.textContent = 'Downloading… this takes a minute on first run.';
+    void (async () => {
+      const r = await sendToBackground({ type: 'ner:load' });
+      if (r.ok) {
+        await sendToBackground({ type: 'settings:set', patch: { nerEnabled: true } });
+        status.textContent = 'Ready. Highlights will appear as you type.';
+      } else {
+        status.textContent = `Failed: ${r.error ?? 'unknown'}`;
+        btn.disabled = false;
+      }
+    })();
+  });
+
+  host.append(btn, status);
+}
+
 async function main(): Promise<void> {
   const { events } = await sendToBackground({ type: 'usage:query', sinceMs: WINDOW_MS });
   renderStats(events);
@@ -187,6 +253,7 @@ async function main(): Promise<void> {
   renderTokenizer();
   wireReceipt(events);
   await renderSettings();
+  await renderNer();
 }
 
 void main();

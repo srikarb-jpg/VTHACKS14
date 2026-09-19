@@ -6,11 +6,13 @@
   "description": "Local-only prompt scrubber and router for AI chat sites.",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "npm run sync-ort && tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "deploy": "npm run build && rm -rf /mnt/c/Users/belve/Downloads/promptfirewall && mkdir -p /mnt/c/Users/belve/Downloads/promptfirewall && cp -r dist/* /mnt/c/Users/belve/Downloads/promptfirewall/ && echo 'Load unpacked from C:\\\\Users\\\\belve\\\\Downloads\\\\promptfirewall'"
+    "deploy": "npm run build && rm -rf /mnt/c/Users/belve/Downloads/promptfirewall && mkdir -p /mnt/c/Users/belve/Downloads/promptfirewall && cp -r dist/* /mnt/c/Users/belve/Downloads/promptfirewall/ && echo 'Load unpacked from C:\\\\Users\\\\belve\\\\Downloads\\\\promptfirewall'",
+    "sync-ort": "node scripts/sync-ort.mjs",
+    "postinstall": "node scripts/sync-ort.mjs"
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "2.7.1",
@@ -19,5 +21,8 @@
     "typescript": "^5.9.0",
     "vite": "^8.3.0",
     "vitest": "^5.0.1"
+  },
+  "dependencies": {
+    "gliner": "^0.0.19"
   }
 }

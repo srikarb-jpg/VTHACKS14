@@ -10,6 +10,7 @@ import * as badge from './badge';
 import * as settings from './settings';
 import * as usage from './usage';
 import * as vault from './vault';
+import { askOffscreen } from './offscreen';
 
 chrome.action.onClicked.addListener(() => {
   void chrome.runtime.openOptionsPage();
@@ -41,6 +42,38 @@ async function handle(msg: ToBackground, tabId: number | undefined): Promise<Fro
     case 'settings:set':
       return { type: 'settings:value', settings: await settings.set(msg.patch) };
 
+    case 'ner:probe': {
+      const r = await askOffscreen({ type: 'ner:probe' });
+      return r.type === 'ner:probe-result'
+        ? r
+        : {
+            type: 'ner:probe-result',
+            probe: {
+              wasm: false,
+              webgpu: false,
+              crossOriginIsolated: false,
+              deviceMemoryGb: null,
+              error: 'offscreen unavailable',
+            },
+            loaded: false,
+            error: 'offscreen unavailable',
+          };
+    }
+
+    case 'ner:load': {
+      const r = await askOffscreen({ type: 'ner:load' });
+      return r.type === 'ner:loaded'
+        ? r
+        : { type: 'ner:loaded', ok: false, error: r.type === 'ner:error' ? r.error : 'unexpected' };
+    }
+
+    case 'ner:detect': {
+      const r = await askOffscreen({ type: 'ner:detect', text: msg.text, threshold: msg.threshold });
+      return r.type === 'ner:spans'
+        ? r
+        : { type: 'ner:spans', spans: [], error: r.type === 'ner:error' ? r.error : 'unexpected' };
+    }
+
     case 'badge:increment':
       if (tabId !== undefined) badge.increment(tabId, msg.redactions, msg.reroutes);
       return { type: 'ok' };
@@ -52,7 +85,13 @@ async function handle(msg: ToBackground, tabId: number | undefined): Promise<Fro
   }
 }
 
-chrome.runtime.onMessage.addListener((msg: ToBackground, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg: ToBackground & { target?: string }, sender, sendResponse) => {
+  // chrome.runtime.sendMessage broadcasts to EVERY extension context, this
+  // one included. Messages we address to the offscreen document carry a
+  // target, and without this guard the background would receive its own
+  // 'ner:*' message, handle it, and call askOffscreen again -- forever.
+  if (msg.target === 'offscreen') return undefined;
+
   handle(msg, sender.tab?.id)
     .then(sendResponse)
     .catch((err: unknown) => {

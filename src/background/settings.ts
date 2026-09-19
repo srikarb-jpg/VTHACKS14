@@ -8,6 +8,7 @@ export const DEFAULTS: Settings = {
   enabled: true,
   searchLaneEnabled: SEARCH_LANE_ENABLED,
   showRoutingChips: true,
+  nerEnabled: false,
 };
 
 export async function get(): Promise<Settings> {

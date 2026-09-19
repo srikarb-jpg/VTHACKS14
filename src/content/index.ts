@@ -25,7 +25,7 @@ import {
 import { redact, revertOne } from '../worker/redact';
 import { sendToBackground } from '../shared/messages';
 import { SUBMIT_LATENCY_BUDGET_MS, TYPING_DEBOUNCE_MS, wrapToken } from '../shared/config';
-import type { Placeholder, Settings, UsageEvent } from '../shared/types';
+import type { Finding, Placeholder, Settings, UsageEvent } from '../shared/types';
 import { ClaudeAdapter } from './adapters/claude';
 import { SubmitGate, type GateVerdict } from './gate';
 import { route, worthSuggesting } from './router';
@@ -42,6 +42,8 @@ import {
   setHighlightHandler,
 } from './ui/highlights';
 import type { TextMap } from './textmap';
+import { nerSpansToFindings } from '../worker/ner-map';
+import { resolveOverlaps } from '../worker/detectors';
 
 const adapter = new ClaudeAdapter();
 
@@ -57,6 +59,7 @@ let settings: Settings = {
   enabled: true,
   searchLaneEnabled: false,
   showRoutingChips: true,
+  nerEnabled: false,
 };
 
 /** Crude token estimate. Four characters per token is the usual rule of thumb. */
@@ -225,6 +228,11 @@ function advisoryScan(): void {
   renderLive(live, stats, text.length);
   if (map) renderHighlights(map, live);
 
+  // NER runs alongside, never in front. Results arrive late and merge into
+  // whatever is already on screen; if they never arrive, nothing breaks,
+  // because the low tier only ever draws underlines.
+  if (settings.nerEnabled) void runNer(text);
+
   if (!settings.showRoutingChips) {
     dismissChip();
     return;
@@ -268,6 +276,62 @@ const MAX_STALENESS_MS = 700;
 function runAdvisorySoon(): void {
   if (idleHandle !== undefined) cancelIdleCallback(idleHandle);
   idleHandle = requestIdleCallback(() => advisoryScan(), { timeout: 200 });
+}
+
+/**
+ * NER is single-flight.
+ *
+ * ONNX Runtime cannot abort a forward pass once it has started, so the only
+ * way to avoid a backlog is to refuse to start a second one. While a pass is
+ * running we remember the newest text and run exactly one more when it
+ * finishes -- intermediate states are dropped rather than queued. Without
+ * this, a fast typist accumulates a queue and the highlights fall seconds
+ * behind the cursor.
+ */
+let nerInFlight = false;
+let nerPending: string | null = null;
+let nerFor = '';
+let nerFindings: Finding[] = [];
+
+async function runNer(text: string): Promise<void> {
+  if (nerInFlight) {
+    nerPending = text;
+    return;
+  }
+  nerInFlight = true;
+  try {
+    const res = await sendToBackground({ type: 'ner:detect', text });
+    if (res.error) {
+      console.warn('[prompt-firewall] ner error', res.error);
+      return;
+    }
+    nerFindings = nerSpansToFindings(res.spans);
+    nerFor = text;
+    repaintWithNer();
+  } catch (err) {
+    console.warn('[prompt-firewall] ner unavailable', err);
+  } finally {
+    nerInFlight = false;
+    const next = nerPending;
+    nerPending = null;
+    // Only chase the newest state, and only if it actually moved on.
+    if (next !== null && next !== nerFor) void runNer(next);
+  }
+}
+
+/**
+ * Merge late NER findings into the current display. Discarded outright if
+ * the text changed while the model was thinking -- stale offsets would draw
+ * underlines in the wrong place, which is worse than drawing none.
+ */
+function repaintWithNer(): void {
+  const current = adapter.readText();
+  if (current !== nerFor || !lastMap) return;
+  const merged = resolveOverlaps([...lastLive, ...nerFindings]);
+  const live = markSettled(merged, current, adapter.getCaretOffset());
+  lastLive = live;
+  renderLive(live, scanner.stats, current.length);
+  renderHighlights(lastMap, live);
 }
 
 function scheduleAdvisory(delay: number): void {

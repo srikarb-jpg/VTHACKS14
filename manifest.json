@@ -4,16 +4,28 @@
   "version": "0.1.0",
   "description": "Scrubs sensitive content out of AI chat prompts before they leave your machine. Everything that decides runs locally.",
   "minimum_chrome_version": "116",
-  "permissions": ["storage"],
-  "host_permissions": ["https://claude.ai/*"],
+  "permissions": [
+    "storage",
+    "offscreen"
+  ],
+  "host_permissions": [
+    "https://claude.ai/*",
+    "https://huggingface.co/*",
+    "https://*.hf.co/*",
+    "https://*.huggingface.co/*"
+  ],
   "background": {
     "service_worker": "src/background/index.ts",
     "type": "module"
   },
   "content_scripts": [
     {
-      "matches": ["https://claude.ai/*"],
-      "js": ["src/content/index.ts"],
+      "matches": [
+        "https://claude.ai/*"
+      ],
+      "js": [
+        "src/content/index.ts"
+      ],
       "run_at": "document_idle",
       "all_frames": false
     }
@@ -21,5 +33,18 @@
   "action": {
     "default_title": "Prompt Firewall"
   },
-  "options_page": "src/options/index.html"
+  "options_page": "src/options/index.html",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "ort/*"
+      ],
+      "matches": [
+        "https://claude.ai/*"
+      ]
+    }
+  ]
 }

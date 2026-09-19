@@ -11,6 +11,7 @@
  *
  * Change a shape here and you have changed someone else's code. Say so.
  */
+import type { NerSpan, Probe } from './ner';
 import type {
   Finding,
   Placeholder,
@@ -58,9 +59,18 @@ export type ToBackground =
   | { type: 'settings:get' }
   | { type: 'settings:set'; patch: Partial<Settings> }
   /** Bump the ad-blocker badge for this tab. */
-  | { type: 'badge:increment'; redactions: number; reroutes: number };
+  | { type: 'badge:increment'; redactions: number; reroutes: number }
+  /** Ask whether this machine can host the model, without downloading it. */
+  | { type: 'ner:probe' }
+  /** Begin the one-time model download. Resolves when it is usable. */
+  | { type: 'ner:load' }
+  /** Run detection. Returns [] when the model is not loaded. */
+  | { type: 'ner:detect'; text: string; threshold?: number };
 
 export type FromBackground =
+  | { type: 'ner:probe-result'; probe: Probe; loaded: boolean; error: string | null }
+  | { type: 'ner:loaded'; ok: boolean; error: string | null }
+  | { type: 'ner:spans'; spans: NerSpan[]; error: string | null }
   | { type: 'vault:contents'; placeholders: Placeholder[] }
   | { type: 'usage:rows'; events: UsageEvent[] }
   | { type: 'settings:value'; settings: Settings }
@@ -70,7 +80,13 @@ export type FromBackground =
  * Narrowing helper for the background's single message listener. Keeps the
  * switch exhaustive without casting at every branch.
  */
-export type ResponseFor<M extends ToBackground> = M extends { type: 'vault:get' }
+export type ResponseFor<M extends ToBackground> = M extends { type: 'ner:probe' }
+  ? Extract<FromBackground, { type: 'ner:probe-result' }>
+  : M extends { type: 'ner:load' }
+    ? Extract<FromBackground, { type: 'ner:loaded' }>
+    : M extends { type: 'ner:detect' }
+      ? Extract<FromBackground, { type: 'ner:spans' }>
+      : M extends { type: 'vault:get' }
   ? Extract<FromBackground, { type: 'vault:contents' }>
   : M extends { type: 'usage:query' }
     ? Extract<FromBackground, { type: 'usage:rows' }>

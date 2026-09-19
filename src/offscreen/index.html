@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Prompt Firewall — detection host</title>
+  </head>
+  <body>
+    <!--
+      Never visible. An offscreen document exists purely to give the model a
+      DOM-ish context with the EXTENSION's CSP, where 'wasm-unsafe-eval' is
+      allowed. A content script runs under the host page's CSP (claude.ai's),
+      which forbids WASM compilation, and an MV3 service worker is killed
+      after ~30s idle, which would unload the model constantly.
+    -->
+    <script type="module" src="./index.ts"></script>
+  </body>
+</html>
