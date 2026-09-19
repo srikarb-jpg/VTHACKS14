@@ -59,10 +59,15 @@ export function redact(
     return token;
   }
 
-  // Walk right-to-left so earlier spans keep their indices as we splice.
-  const ordered = [...toRedact].sort((a, b) => b.start - a.start);
+  // Assign tokens in DOCUMENT order, so the first person in the text is
+  // PERSON_1. Splicing happens right-to-left below to keep earlier indices
+  // valid, and doing both in one pass numbered them backwards -- the second
+  // person in a sentence came out as PERSON_3, which makes the diff read as
+  // if something is wrong.
+  for (const f of [...toRedact].sort((a, b) => a.start - b.start)) tokenFor(f);
+
   let redacted = text;
-  for (const f of ordered) {
+  for (const f of [...toRedact].sort((a, b) => b.start - a.start)) {
     redacted = redacted.slice(0, f.start) + wrapToken(tokenFor(f)) + redacted.slice(f.end);
   }
 

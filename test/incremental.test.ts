@@ -354,3 +354,54 @@ describe('auto-redacting confident names', () => {
     expect(r.placeholders).toHaveLength(2);
   });
 });
+
+describe('multiple entities of the same kind', () => {
+  const text =
+    'Amanda Britfield (amanda@x.org) and Raj Patel (raj@y.com) both reported it. ' +
+    'Amanda Britfield escalated to Dana Whitfield. Card 4111 1111 1111 1111 and more text.';
+
+  const people = ['Amanda Britfield', 'Raj Patel', 'Dana Whitfield'].flatMap((n) => {
+    const out = [];
+    let i = text.indexOf(n);
+    while (i !== -1) {
+      out.push({ start: i, end: i + n.length, label: 'person', score: 0.93, text: n });
+      i = text.indexOf(n, i + n.length);
+    }
+    return out;
+  });
+
+  const all = [
+    ...fullScan(text).findings,
+    ...nerSpansToFindings(people, text).map((f) => ({ ...f, severity: 'medium' as const })),
+  ];
+
+  it('numbers by first appearance in the text', () => {
+    const r = redact(text, all, 'medium');
+    const byToken = new Map(r.placeholders.map((p) => [p.token, p.value]));
+    expect(byToken.get('PERSON_1')).toBe('Amanda Britfield');
+    expect(byToken.get('PERSON_2')).toBe('Raj Patel');
+    expect(byToken.get('PERSON_3')).toBe('Dana Whitfield');
+  });
+
+  it('every token is unique and every value distinct', () => {
+    const r = redact(text, all, 'medium');
+    const tokens = r.placeholders.map((p) => p.token);
+    expect(new Set(tokens).size).toBe(tokens.length);
+    expect(new Set(r.placeholders.map((p) => p.value)).size).toBe(tokens.length);
+  });
+
+  it('repeated mentions reuse one token', () => {
+    const r = redact(text, all, 'medium');
+    expect(r.redacted.match(/\[PERSON_1\]/g)).toHaveLength(2);
+  });
+
+  it('leaves no original value behind', () => {
+    const r = redact(text, all, 'medium');
+    for (const p of r.placeholders) expect(r.redacted).not.toContain(p.value);
+  });
+
+  it('does not swallow the separator after a card number', () => {
+    const r = redact(text, all, 'medium');
+    expect(r.redacted).toContain('] and more text');
+  });
+});

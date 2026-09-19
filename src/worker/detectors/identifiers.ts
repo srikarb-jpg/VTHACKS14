@@ -41,7 +41,10 @@ function isPlausibleSsn(value: string): boolean {
   return true;
 }
 
-const CARD = /\b(?:\d[ -]?){13,19}\b/g;
+// The trailing \d is what stops the group's optional separator from being
+// swallowed into the match -- without it "4111 1111 1111 1111 and" matched
+// the trailing space too, and the redaction came out as "[CARD_1]and".
+const CARD = /\b(?:\d[ -]?){12,18}\d\b/g;
 const SSN = /\b\d{3}[- ]\d{2}[- ]\d{4}\b/g;
 /** US routing + account pairs, and IBANs. */
 const IBAN = /\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b/g;
