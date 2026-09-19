@@ -59,6 +59,23 @@ function ensure(): { body: HTMLElement; statLine: HTMLElement } {
   return { body, statLine };
 }
 
+/** Short status string for the model lane, shown next to the cache stats. */
+export type NerState = 'off' | 'waiting' | 'running' | { spans: number } | { error: string };
+
+let nerState: NerState = 'off';
+
+export function setNerState(s: NerState): void {
+  nerState = s;
+}
+
+function nerLabel(): string {
+  if (nerState === 'off') return 'ner off';
+  if (nerState === 'waiting') return 'ner idle';
+  if (nerState === 'running') return 'ner running…';
+  if ('error' in nerState) return `ner error: ${nerState.error.slice(0, 40)}`;
+  return `ner ${nerState.spans} span${nerState.spans === 1 ? '' : 's'}`;
+}
+
 export function renderLive(findings: LiveFinding[], stats: ScanStats, textLength: number): void {
   if (!findings.length && textLength < 3) {
     hideLive();
@@ -104,7 +121,7 @@ export function renderLive(findings: LiveFinding[], stats: ScanStats, textLength
   const pct = total ? Math.round((stats.hits / total) * 100) : 0;
   s.textContent =
     `${stats.chunks} chunks · ${stats.hits} cached / ${stats.misses} rescanned (${pct}%) · ` +
-    `${stats.elapsedMs.toFixed(2)} ms`;
+    `${stats.elapsedMs.toFixed(2)} ms · ${nerLabel()}`;
 }
 
 export function hideLive(): void {

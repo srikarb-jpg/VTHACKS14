@@ -42,19 +42,46 @@ const LABEL_TO_KIND: Record<string, FindingKind> = {
  */
 export const MIN_SCORE = 0.45;
 
-export function nerSpansToFindings(spans: NerSpan[]): Finding[] {
+/**
+ * Map spans to findings, verifying the offsets against the source text.
+ *
+ * GLiNER reports start/end that may be TOKEN indices rather than character
+ * offsets depending on the model type, and a wrong offset draws an underline
+ * under the wrong words -- which looks like a detection bug rather than an
+ * indexing one. So we check, and repair by locating spanText when the check
+ * fails. A span we cannot place is dropped rather than drawn wrongly.
+ */
+export function nerSpansToFindings(spans: NerSpan[], text: string): Finding[] {
   const out: Finding[] = [];
+  const used = new Set<number>();
+
   for (const s of spans) {
     if (s.score < MIN_SCORE) continue;
     const kind = LABEL_TO_KIND[s.label.toLowerCase()];
     if (!kind) continue;
-    if (s.end <= s.start) continue;
+
+    let { start, end } = s;
+    const matchesAtOffsets =
+      end > start && end <= text.length && text.slice(start, end) === s.text;
+
+    if (!matchesAtOffsets) {
+      // Offsets did not line up. Find the span's text instead, preferring an
+      // occurrence we have not already claimed so repeated names still get
+      // one finding each.
+      let idx = text.indexOf(s.text);
+      while (idx !== -1 && used.has(idx)) idx = text.indexOf(s.text, idx + 1);
+      if (idx === -1 || !s.text) continue;
+      start = idx;
+      end = idx + s.text.length;
+    }
+    used.add(start);
+
     out.push({
       kind,
       severity: 'low',
       label: `${s.label} (${Math.round(s.score * 100)}%)`,
-      start: s.start,
-      end: s.end,
+      start,
+      end,
       value: s.text,
       detector: `ner.${s.label.replace(/\s+/g, '_')}`,
     });

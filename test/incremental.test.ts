@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { splitStable, hash } from '../src/worker/chunks';
 import { IncrementalScanner, isSettled, markSettled } from '../src/worker/incremental';
 import { scan as fullScan } from '../src/worker/detectors';
+import { nerSpansToFindings } from '../src/worker/ner-map';
 
 const detect = (t: string) => fullScan(t).findings;
 const mk = () => new IncrementalScanner(detect);
@@ -202,5 +203,56 @@ describe('settled vs provisional', () => {
     expect(marked.every((f) => typeof f.settled === 'boolean')).toBe(true);
     // The trailing key is still being typed, so it is not settled.
     expect(marked.at(-1)?.settled).toBe(false);
+  });
+});
+
+describe('ner offset mapping', () => {
+  const text = 'Amanda Britfield was my manager at Microsoft.';
+
+  it('keeps offsets that already line up', () => {
+    const fs = nerSpansToFindings(
+      [{ start: 0, end: 16, label: 'person', score: 0.9, text: 'Amanda Britfield' }],
+      text,
+    );
+    expect(fs).toHaveLength(1);
+    expect(text.slice(fs[0]!.start, fs[0]!.end)).toBe('Amanda Britfield');
+  });
+
+  it('repairs token indices by locating the span text', () => {
+    // What a token-indexed model reports: start/end are word positions.
+    const fs = nerSpansToFindings(
+      [{ start: 0, end: 2, label: 'person', score: 0.9, text: 'Amanda Britfield' }],
+      text,
+    );
+    expect(fs).toHaveLength(1);
+    expect(text.slice(fs[0]!.start, fs[0]!.end)).toBe('Amanda Britfield');
+  });
+
+  it('gives repeated mentions distinct offsets', () => {
+    const t2 = 'Microsoft and Microsoft again';
+    const fs = nerSpansToFindings(
+      [
+        { start: 99, end: 108, label: 'organization', score: 0.9, text: 'Microsoft' },
+        { start: 99, end: 108, label: 'organization', score: 0.9, text: 'Microsoft' },
+      ],
+      t2,
+    );
+    expect(fs).toHaveLength(2);
+    expect(fs[0]!.start).not.toBe(fs[1]!.start);
+    for (const f of fs) expect(t2.slice(f.start, f.end)).toBe('Microsoft');
+  });
+
+  it('drops a span whose text is absent rather than misplacing it', () => {
+    expect(
+      nerSpansToFindings([{ start: 0, end: 5, label: 'person', score: 0.9, text: 'Nobody' }], text),
+    ).toHaveLength(0);
+  });
+
+  it('everything from the model lands in the low tier', () => {
+    const fs = nerSpansToFindings(
+      [{ start: 0, end: 16, label: 'person', score: 0.99, text: 'Amanda Britfield' }],
+      text,
+    );
+    expect(fs[0]!.severity).toBe('low');
   });
 });

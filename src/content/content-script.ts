@@ -35,7 +35,7 @@ import { showDiff, closeDiff } from './ui/diff';
 import { showBlockPanel } from './ui/cui-block';
 import { showChip, dismissChip } from './ui/chip';
 import { showReady } from './ui/ready';
-import { renderLive, hideLive } from './ui/live';
+import { renderLive, hideLive, setNerState } from './ui/live';
 import {
   renderHighlights,
   clearHighlights,
@@ -231,7 +231,11 @@ function advisoryScan(): void {
   // NER runs alongside, never in front. Results arrive late and merge into
   // whatever is already on screen; if they never arrive, nothing breaks,
   // because the low tier only ever draws underlines.
-  if (settings.nerEnabled) void runNer(text);
+  if (settings.nerEnabled) {
+    void runNer(text);
+  } else {
+    setNerState('off');
+  }
 
   if (!settings.showRoutingChips) {
     dismissChip();
@@ -299,17 +303,25 @@ async function runNer(text: string): Promise<void> {
     return;
   }
   nerInFlight = true;
+  setNerState('running');
   try {
     const res = await sendToBackground({ type: 'ner:detect', text });
     if (res.error) {
       console.warn('[prompt-firewall] ner error', res.error);
+      setNerState({ error: res.error });
       return;
     }
-    nerFindings = nerSpansToFindings(res.spans);
+    nerFindings = nerSpansToFindings(res.spans, text);
+    console.info(
+      `[prompt-firewall] ner: ${res.spans.length} raw span(s) -> ${nerFindings.length} finding(s)`,
+      res.spans,
+    );
     nerFor = text;
+    setNerState({ spans: nerFindings.length });
     repaintWithNer();
   } catch (err) {
     console.warn('[prompt-firewall] ner unavailable', err);
+    setNerState({ error: String(err) });
   } finally {
     nerInFlight = false;
     const next = nerPending;
@@ -404,6 +416,18 @@ async function boot(): Promise<void> {
   const redraw = (): void => {
     if (lastMap && lastLive.length) renderHighlights(lastMap, lastLive);
   };
+  // Settings are cached in this tab, so a change made on the options page
+  // would otherwise not reach an already-open tab until it was reloaded.
+  // That is exactly how enabling local AI appeared to do nothing.
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local' || !changes.settings_v1) return;
+    const next = changes.settings_v1.newValue as Partial<Settings> | undefined;
+    if (!next) return;
+    settings = { ...settings, ...next };
+    console.info('[prompt-firewall] settings updated', settings);
+    scheduleAdvisory(0);
+  });
+
   window.addEventListener('scroll', redraw, { capture: true, passive: true });
   window.addEventListener('resize', redraw, { passive: true });
 
