@@ -84,6 +84,7 @@ export function nerSpansToFindings(spans: NerSpan[], text: string): Finding[] {
       end,
       value: s.text,
       detector: `ner.${s.label.replace(/\s+/g, '_')}`,
+      score: s.score,
     });
   }
   return out;

@@ -9,6 +9,8 @@ export const DEFAULTS: Settings = {
   searchLaneEnabled: SEARCH_LANE_ENABLED,
   showRoutingChips: true,
   nerEnabled: false,
+  autoRedactNames: true,
+  nerAutoRedactMinScore: 0.7,
 };
 
 export async function get(): Promise<Settings> {

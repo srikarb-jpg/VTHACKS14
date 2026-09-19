@@ -55,6 +55,11 @@ export interface Finding {
   value: string;
   /** Which detector produced this, for debugging and the eval harness. */
   detector: string;
+  /**
+   * Model confidence in [0,1], for detectors that produce one. Absent for
+   * regex, which is deterministic -- a pattern either matched or it did not.
+   */
+  score?: number;
 }
 
 /** A redaction that was applied: real value <-> placeholder token. */
@@ -106,6 +111,18 @@ export interface Settings {
    * surprise on someone's tethered connection.
    */
   nerEnabled: boolean;
+  /**
+   * Auto-redact names and organizations found by the model, not just
+   * highlight them.
+   *
+   * This overrides the spec's design principle 3, which keeps low-precision
+   * detectors out of any action that alters text. The gate below is what
+   * makes it defensible: only findings the model is confident about act on
+   * their own, and the diff makes every substitution reversible.
+   */
+  autoRedactNames: boolean;
+  /** Minimum model confidence for a name to be redacted rather than shown. */
+  nerAutoRedactMinScore: number;
 }
 
 /**

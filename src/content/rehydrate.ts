@@ -17,6 +17,41 @@ import type { ComposerAdapter } from './adapters/types';
 
 const MARKED = 'data-pf-rehydrated';
 
+/**
+ * Every placeholder span we have wrapped, so a single toggle can flip all
+ * of them at once. Held weakly by nothing -- the list is cleared when the
+ * page goes away, and it only holds nodes already in the document.
+ */
+interface Wrapped {
+  span: HTMLElement;
+  token: string;
+  value: string;
+}
+const wrapped: Wrapped[] = [];
+let revealAll = false;
+
+function paint(w: Wrapped): void {
+  w.span.textContent = revealAll ? w.value : `[${w.token}]`;
+  w.span.style.background = revealAll ? '#16301f' : '#2a2118';
+  w.span.style.color = revealAll ? '#7ee2a8' : '#f0b429';
+}
+
+/**
+ * Flip every placeholder in the conversation between token and real value.
+ *
+ * Nothing is fetched and nothing is sent: the mapping has been in this
+ * page's memory since the redaction happened. Revealing is a local
+ * rendering choice, which is the whole point of redacting reversibly.
+ */
+export function setRevealAll(on: boolean): void {
+  revealAll = on;
+  for (const w of wrapped) paint(w);
+}
+
+export function revealedCount(): number {
+  return wrapped.length;
+}
+
 function wrap(textNode: Text, placeholders: Map<string, Placeholder>): void {
   const text = textNode.nodeValue ?? '';
   PLACEHOLDER_PATTERN.lastIndex = 0;
@@ -37,14 +72,20 @@ function wrap(textNode: Text, placeholders: Map<string, Placeholder>): void {
 
     const span = document.createElement('span');
     span.setAttribute(MARKED, '');
-    span.textContent = m[0];
-    span.title = known.value;
-    span.style.cssText =
-      'background:#2a2118;color:#f0b429;border-radius:3px;padding:0 3px;cursor:help;';
-    // Click reveals inline, for the case where a tooltip will not show on a
-    // projector or in a screen recording.
+    span.title = `${known.value} — click to toggle`;
+    span.style.cssText = 'border-radius:3px;padding:0 3px;cursor:pointer;transition:all .12s;';
+
+    const entry: Wrapped = { span, token, value: known.value };
+    wrapped.push(entry);
+    paint(entry);
+
+    // Individual click still works, for revealing one value on a projector
+    // without exposing the rest.
     span.addEventListener('click', () => {
-      span.textContent = span.textContent === m[0] ? known.value : m[0];
+      const showing = span.textContent === known.value;
+      span.textContent = showing ? `[${token}]` : known.value;
+      span.style.background = showing ? '#2a2118' : '#16301f';
+      span.style.color = showing ? '#f0b429' : '#7ee2a8';
     });
     frag.append(span);
     cursor = m.index + m[0].length;

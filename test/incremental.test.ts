@@ -3,6 +3,7 @@ import { splitStable, hash } from '../src/worker/chunks';
 import { IncrementalScanner, isSettled, markSettled } from '../src/worker/incremental';
 import { scan as fullScan } from '../src/worker/detectors';
 import { nerSpansToFindings } from '../src/worker/ner-map';
+import { redact } from '../src/worker/redact';
 
 const detect = (t: string) => fullScan(t).findings;
 const mk = () => new IncrementalScanner(detect);
@@ -295,5 +296,61 @@ describe('settled: sentence punctuation', () => {
                 start: 5, end: 13, value: 'dana@ex', detector: 'test' };
     // end=13 points at '.', and the char after it is 'c' -- still typing.
     expect(isSettled(f, t, t.length)).toBe(false);
+  });
+});
+
+describe('auto-redacting confident names', () => {
+  /** Mirrors promoteConfidentNames in the content script. */
+  const promote = (fs: ReturnType<typeof nerSpansToFindings>, min: number) =>
+    fs.map((f) =>
+      f.severity === 'low' && (f.score ?? 0) >= min ? { ...f, severity: 'medium' as const } : f,
+    );
+
+  const text = 'Amanda Britfield was my manager at Microsoft.';
+  const spans = [
+    { start: 0, end: 16, label: 'person', score: 0.94, text: 'Amanda Britfield' },
+    { start: 35, end: 44, label: 'organization', score: 0.62, text: 'Microsoft' },
+  ];
+
+  it('carries the model score onto the finding', () => {
+    const fs = nerSpansToFindings(spans, text);
+    expect(fs[0]!.score).toBeCloseTo(0.94);
+  });
+
+  it('promotes only findings above the threshold', () => {
+    const promoted = promote(nerSpansToFindings(spans, text), 0.7);
+    expect(promoted.find((f) => f.value === 'Amanda Britfield')!.severity).toBe('medium');
+    // Below threshold: stays advisory, never rewrites the prompt.
+    expect(promoted.find((f) => f.value === 'Microsoft')!.severity).toBe('low');
+  });
+
+  it('a promoted name is actually redacted, a low one is not', () => {
+    const promoted = promote(nerSpansToFindings(spans, text), 0.7);
+    const r = redact(text, promoted, 'medium');
+    expect(r.redacted).toContain('[PERSON_1]');
+    expect(r.redacted).not.toContain('Amanda Britfield');
+    expect(r.redacted).toContain('Microsoft');
+  });
+
+  it('regex findings are unaffected by the threshold', () => {
+    const t2 = 'mail dana@example.com';
+    const fs = fullScan(t2).findings;
+    expect(promote(fs as never, 0.7).find((f) => f.kind === 'email')!.severity).toBe('medium');
+  });
+
+  it('placeholders stay consistent across a mixed prompt', () => {
+    const t2 = 'Amanda Britfield emailed dana@example.com. Amanda Britfield replied.';
+    const ner = nerSpansToFindings(
+      [
+        { start: 0, end: 16, label: 'person', score: 0.94, text: 'Amanda Britfield' },
+        { start: 43, end: 59, label: 'person', score: 0.94, text: 'Amanda Britfield' },
+      ],
+      t2,
+    );
+    const all = [...fullScan(t2).findings, ...promote(ner, 0.7)];
+    const r = redact(t2, all, 'medium');
+    expect(r.redacted.match(/\[PERSON_1\]/g)).toHaveLength(2);
+    expect(r.redacted).toContain('[EMAIL_1]');
+    expect(r.placeholders).toHaveLength(2);
   });
 });

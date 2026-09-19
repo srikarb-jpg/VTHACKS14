@@ -29,7 +29,14 @@ import type { Finding, Placeholder, Settings, UsageEvent } from '../shared/types
 import { ClaudeAdapter } from './adapters/claude';
 import { SubmitGate, type GateVerdict } from './gate';
 import { route, worthSuggesting } from './router';
-import { startRehydration } from './rehydrate';
+import { startRehydration, setRevealAll } from './rehydrate';
+import {
+  showRevealToggle,
+  hideRevealToggle,
+  setRevealHandler,
+  showPending,
+  hidePending,
+} from './ui/reveal';
 import { showToast, dismissToast } from './ui/toast';
 import { showDiff, closeDiff } from './ui/diff';
 import { showBlockPanel } from './ui/cui-block';
@@ -62,6 +69,8 @@ let settings: Settings = {
   searchLaneEnabled: false,
   showRoutingChips: true,
   nerEnabled: false,
+  autoRedactNames: true,
+  nerAutoRedactMinScore: 0.7,
 };
 
 /** Crude token estimate. Four characters per token is the usual rule of thumb. */
@@ -88,7 +97,7 @@ const gate = new SubmitGate(adapter, {
       console.warn(`[prompt-firewall] scan took ${result.elapsedMs.toFixed(1)}ms, over budget`);
     }
 
-    // --- block tier -------------------------------------------------------
+    // --- block tier: nothing leaves, regardless of anything else ----------
     if (result.maxSeverity === 'block') {
       const blocking = result.findings.filter((f) => f.severity === 'block');
       showBlockPanel({ findings: blocking, onDismiss: () => undefined });
@@ -97,51 +106,158 @@ const gate = new SubmitGate(adapter, {
       return 'cancel';
     }
 
-    // --- nothing to redact ------------------------------------------------
-    const actionable = result.findings.filter(
-      (f) => f.severity === 'high' || f.severity === 'medium',
-    );
-    if (!actionable.length) {
-      void logUsage(text, result.elapsedMs, [], false);
-      return 'send';
+    // --- do we need the model before we can decide? -----------------------
+    //
+    // NER is asynchronous, so at Enter the model may not have seen the last
+    // sentence. When names are being redacted automatically, sending before
+    // it has is exactly the leak this feature exists to prevent -- so we
+    // hold the send and finish the job on the async path below.
+    const needsModel =
+      settings.enabled && settings.nerEnabled && settings.autoRedactNames && nerFor !== text;
+
+    if (needsModel) {
+      void finishSubmitWithNer(text, result);
+      return 'hold';
     }
 
-    // --- redact and send ourselves ---------------------------------------
-    const r = redact(text, result.findings, REDACTION_THRESHOLD);
-    if (!adapter.writeText(r.redacted)) {
-      // We could not rewrite the composer. Cancelling is the only safe
-      // option: letting the event through would send the ORIGINAL text.
-      console.error('[prompt-firewall] composer write failed; send cancelled');
-      return 'cancel';
-    }
-
-    void sendToBackground({ type: 'vault:put', placeholders: r.placeholders });
-    void sendToBackground({
-      type: 'badge:increment',
-      redactions: r.placeholders.length,
-      reroutes: 0,
-    });
-    void logUsage(text, result.elapsedMs, r.placeholders, false);
-
-    gate.sendWithoutIntercepting();
-
-    showToast({
-      placeholders: r.placeholders,
-      onUndo: () => {
-        adapter.writeText(r.original);
-      },
-      onOpenDiff: () => openDiff(r.original, r.redacted, r.placeholders),
-    });
-
-    return 'hold';
+    const merged = promoteConfidentNames([...result.findings, ...currentNerFindings(text)]);
+    return applyRedactionAndSend(text, merged, result.elapsedMs);
   },
 });
+
+/**
+ * Placeholders for this page, kept here as well as in the service worker's
+ * vault.
+ *
+ * The vault is the canonical store, but the service worker is terminated
+ * when idle and takes the mapping with it. The reveal toggle has to keep
+ * working for as long as the conversation is on screen, so the page holds
+ * its own copy. Same guarantee either way: memory only, never written to
+ * disk, gone when the tab closes.
+ */
+const localPlaceholders = new Map<string, Placeholder>();
+
+function rememberPlaceholders(ps: Placeholder[]): void {
+  for (const p of ps) localPlaceholders.set(p.token, p);
+  showRevealToggle(localPlaceholders.size);
+}
+
+/** NER findings, but only if they were computed for exactly this text. */
+function currentNerFindings(text: string): Finding[] {
+  return nerFor === text ? nerFindings : [];
+}
+
+/**
+ * Wait for the model, then redact and send.
+ *
+ * Bounded, because a hung model must never strand the user's message. On
+ * timeout we proceed with whatever regex found and say so -- a late name is
+ * a missed highlight; a lost prompt is a broken product.
+ */
+const SUBMIT_NER_TIMEOUT_MS = 2500;
+
+async function finishSubmitWithNer(
+  text: string,
+  result: { findings: Finding[]; elapsedMs: number },
+): Promise<void> {
+  const started = performance.now();
+  showPending('Checking names…');
+  try {
+    await Promise.race([
+      runNer(text),
+      new Promise((resolve) => setTimeout(resolve, SUBMIT_NER_TIMEOUT_MS)),
+    ]);
+  } catch (err) {
+    console.warn('[prompt-firewall] ner failed at submit', err);
+  }
+  hidePending();
+
+  if (nerFor !== text) {
+    console.warn(
+      `[prompt-firewall] sending without model results after ` +
+        `${(performance.now() - started).toFixed(0)}ms — names may be unredacted`,
+    );
+  }
+
+  const merged = promoteConfidentNames([...result.findings, ...currentNerFindings(text)]);
+  const verdict = applyRedactionAndSend(text, merged, result.elapsedMs);
+  // applyRedactionAndSend already sent on 'hold'. 'send' means there was
+  // nothing to redact, so release the original event ourselves.
+  if (verdict === 'send') gate.sendWithoutIntercepting();
+}
+
+/**
+ * The shared tail of both paths: redact whatever we were given, write it
+ * back, send, and show the toast.
+ */
+function applyRedactionAndSend(
+  text: string,
+  findings: Finding[],
+  scanMs: number,
+): GateVerdict {
+  const actionable = findings.filter((f) => f.severity === 'high' || f.severity === 'medium');
+  if (!actionable.length) {
+    void logUsage(text, scanMs, [], false);
+    return 'send';
+  }
+
+  const r = redact(text, resolveOverlaps(findings), REDACTION_THRESHOLD);
+  if (!adapter.writeText(r.redacted)) {
+    // We could not rewrite the composer. Cancelling is the only safe option:
+    // letting the event through would send the ORIGINAL text.
+    console.error('[prompt-firewall] composer write failed; send cancelled');
+    return 'cancel';
+  }
+
+  // Kept in this page as well as the vault. The vault lives in the service
+  // worker, which Chrome terminates when idle -- and the reveal toggle has
+  // to keep working for as long as the conversation is on screen.
+  rememberPlaceholders(r.placeholders);
+
+  void sendToBackground({ type: 'vault:put', placeholders: r.placeholders });
+  void sendToBackground({
+    type: 'badge:increment',
+    redactions: r.placeholders.length,
+    reroutes: 0,
+  });
+  void logUsage(text, scanMs, r.placeholders, false);
+
+  gate.sendWithoutIntercepting();
+
+  showToast({
+    placeholders: r.placeholders,
+    onUndo: () => {
+      adapter.writeText(r.original);
+    },
+    onOpenDiff: () => openDiff(r.original, r.redacted, r.placeholders),
+  });
+
+  return 'hold';
+}
 
 /**
  * The authoritative scan. Always runs on the complete final text, always
  * through the shared cache. Correctness never depends on the typing pass
  * having happened -- that pass only makes this one cheap.
  */
+/**
+ * Promote confident model findings into the redactable tier.
+ *
+ * NER lands in 'low', which never alters text. When the user has asked for
+ * names to be redacted automatically, a finding the model is confident
+ * about is raised to 'medium' so the existing redaction path picks it up.
+ * Anything below the threshold stays 'low' and remains highlight-only --
+ * that boundary is what keeps a guess from silently rewriting the prompt.
+ */
+function promoteConfidentNames(findings: Finding[]): Finding[] {
+  if (!settings.autoRedactNames) return findings;
+  return findings.map((f) =>
+    f.severity === 'low' && (f.score ?? 0) >= settings.nerAutoRedactMinScore
+      ? { ...f, severity: 'medium' as const }
+      : f,
+  );
+}
+
 function scanNow(text: string) {
   const { findings, stats } = scanner.scan(text);
   return { findings, maxSeverity: maxSeverity(findings), elapsedMs: stats.elapsedMs };
@@ -512,9 +628,20 @@ async function boot(): Promise<void> {
     { capture: true },
   );
 
+  setRevealHandler((on) => setRevealAll(on));
+
   startRehydration(adapter, async () => {
-    const r = await sendToBackground({ type: 'vault:get' });
-    return r.placeholders;
+    // Prefer this page's own copy; fall back to the vault, which may have
+    // been lost to a service-worker restart.
+    if (localPlaceholders.size > 0) return [...localPlaceholders.values()];
+    try {
+      const r = await sendToBackground({ type: 'vault:get' });
+      for (const p of r.placeholders) localPlaceholders.set(p.token, p);
+      if (r.placeholders.length) showRevealToggle(localPlaceholders.size);
+      return r.placeholders;
+    } catch {
+      return [];
+    }
   });
 
   window.addEventListener('pagehide', () => {
@@ -523,6 +650,8 @@ async function boot(): Promise<void> {
     dismissChip();
     hideLive();
     clearHighlights();
+    hideRevealToggle();
+    hidePending();
   });
 
   // claude.ai is a single-page app, so the composer frequently does not

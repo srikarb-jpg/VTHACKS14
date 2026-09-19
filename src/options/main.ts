@@ -157,6 +157,13 @@ async function renderSettings(): Promise<void> {
       'Highlight names and organizations using the local model. Requires the download below.',
     ),
     toggle(
+      'autoRedactNames',
+      'Auto-redact names',
+      'Replace names and organizations the model is confident about, not just highlight them. ' +
+        'Below the confidence threshold they stay highlight-only. Every substitution is shown ' +
+        'in the diff and can be reverted.',
+    ),
+    toggle(
       'searchLaneEnabled',
       'Search lane',
       'Off by default. Turning this on sends a rewritten, scrubbed query to a third-party search API — the only outbound call this extension can make.',
