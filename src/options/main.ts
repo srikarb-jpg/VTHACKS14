@@ -260,7 +260,28 @@ async function renderNer(): Promise<void> {
     })();
   });
 
-  host.append(btn, status);
+  const test = document.createElement('button');
+  test.textContent = 'Run self-test';
+  test.style.marginTop = '12px';
+  test.style.marginLeft = '8px';
+  test.addEventListener('click', () => {
+    test.disabled = true;
+    status.textContent = 'Running one inference…';
+    void (async () => {
+      const r = await sendToBackground({ type: 'ner:selftest' });
+      test.disabled = false;
+      if (r.error) {
+        status.textContent = `Failed: ${r.error}`;
+        return;
+      }
+      const found = r.spans.map((s) => `${s.text} (${s.label} ${Math.round(s.score * 100)}%)`);
+      status.textContent = `${r.ms.toFixed(0)} ms on ${r.provider} — ${
+        found.length ? found.join(', ') : 'no entities found'
+      }`;
+    })();
+  });
+
+  host.append(btn, test, status);
 }
 
 async function main(): Promise<void> {

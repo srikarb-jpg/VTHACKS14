@@ -67,6 +67,19 @@ async function handle(msg: ToBackground, tabId: number | undefined): Promise<Fro
         : { type: 'ner:loaded', ok: false, error: r.type === 'ner:error' ? r.error : 'unexpected' };
     }
 
+    case 'ner:selftest': {
+      const r = await askOffscreen({ type: 'ner:selftest' });
+      return r.type === 'ner:selftest-result'
+        ? r
+        : {
+            type: 'ner:selftest-result',
+            ms: 0,
+            spans: [],
+            provider: 'none',
+            error: r.type === 'ner:error' ? r.error : 'unexpected',
+          };
+    }
+
     case 'ner:detect': {
       const r = await askOffscreen({ type: 'ner:detect', text: msg.text, threshold: msg.threshold });
       return r.type === 'ner:spans'

@@ -29,10 +29,13 @@ export interface NerSpan {
 export type OffscreenRequest =
   | { type: 'ner:probe' }
   | { type: 'ner:load' }
-  | { type: 'ner:detect'; text: string; entities?: string[]; threshold?: number };
+  | { type: 'ner:detect'; text: string; entities?: string[]; threshold?: number }
+  /** One inference on a fixed string, with timing. Diagnostics only. */
+  | { type: 'ner:selftest' };
 
 export type OffscreenResponse =
   | { type: 'ner:probe-result'; probe: Probe; loaded: boolean; error: string | null }
   | { type: 'ner:loaded'; ok: boolean; error: string | null }
   | { type: 'ner:spans'; spans: NerSpan[]; error: string | null }
+  | { type: 'ner:selftest-result'; ms: number; spans: NerSpan[]; provider: string; error: string | null }
   | { type: 'ner:error'; error: string };

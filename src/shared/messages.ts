@@ -65,12 +65,14 @@ export type ToBackground =
   /** Begin the one-time model download. Resolves when it is usable. */
   | { type: 'ner:load' }
   /** Run detection. Returns [] when the model is not loaded. */
-  | { type: 'ner:detect'; text: string; threshold?: number };
+  | { type: 'ner:detect'; text: string; threshold?: number }
+  | { type: 'ner:selftest' };
 
 export type FromBackground =
   | { type: 'ner:probe-result'; probe: Probe; loaded: boolean; error: string | null }
   | { type: 'ner:loaded'; ok: boolean; error: string | null }
   | { type: 'ner:spans'; spans: NerSpan[]; error: string | null }
+  | { type: 'ner:selftest-result'; ms: number; spans: NerSpan[]; provider: string; error: string | null }
   | { type: 'vault:contents'; placeholders: Placeholder[] }
   | { type: 'usage:rows'; events: UsageEvent[] }
   | { type: 'settings:value'; settings: Settings }
@@ -84,7 +86,9 @@ export type ResponseFor<M extends ToBackground> = M extends { type: 'ner:probe' 
   ? Extract<FromBackground, { type: 'ner:probe-result' }>
   : M extends { type: 'ner:load' }
     ? Extract<FromBackground, { type: 'ner:loaded' }>
-    : M extends { type: 'ner:detect' }
+    : M extends { type: 'ner:selftest' }
+      ? Extract<FromBackground, { type: 'ner:selftest-result' }>
+      : M extends { type: 'ner:detect' }
       ? Extract<FromBackground, { type: 'ner:spans' }>
       : M extends { type: 'vault:get' }
   ? Extract<FromBackground, { type: 'vault:contents' }>

@@ -16,7 +16,37 @@
 import type { NerSpan, OffscreenRequest, OffscreenResponse, Probe } from '../shared/ner';
 
 const MODEL_REPO = 'onnx-community/gliner_small-v2.1';
-const MODEL_FILE = 'onnx/model_int8.onnx';
+
+/**
+ * int8 is a CPU quantization format. ONNX Runtime 1.19's WebGPU backend has
+ * thin coverage of int8 operators and can STALL rather than fail on them --
+ * inference simply never resolves. So the two are paired deliberately:
+ *
+ *   wasm   + model_int8  (175 MB)  known-good, what we ship
+ *   webgpu + model_q4f16 (234 MB)  faster, but unverified here
+ *
+ * Selecting WebGPU merely because an adapter exists is what hung it.
+ */
+const VARIANTS = {
+  wasm: { file: 'onnx/model_int8.onnx', provider: 'wasm' as const },
+  webgpu: { file: 'onnx/model_q4f16.onnx', provider: 'webgpu' as const },
+};
+
+/** Flip to true only to experiment; wasm is the supported path. */
+const PREFER_WEBGPU = false;
+
+/** Hard ceiling on one inference. Without it a stall is indistinguishable
+ *  from slowness and the UI sits on "running" forever. */
+const INFERENCE_TIMEOUT_MS = 45_000;
+
+function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${what} timed out after ${ms}ms`)), ms),
+    ),
+  ]);
+}
 
 /** Entity types GLiNER is asked for. Zero-shot, so this list is just config. */
 export const DEFAULT_ENTITIES = [
@@ -33,6 +63,7 @@ type GlinerModule = typeof import('gliner');
 type GlinerInstance = InstanceType<GlinerModule['Gliner']>;
 
 let model: GlinerInstance | null = null;
+let activeProvider = 'none';
 let loading: Promise<void> | null = null;
 let lastError: string | null = null;
 
@@ -80,13 +111,14 @@ async function ensureModel(): Promise<void> {
 
     const { Gliner } = await import('gliner');
 
+    const variant = PREFER_WEBGPU && caps.webgpu ? VARIANTS.webgpu : VARIANTS.wasm;
+    console.info(`[prompt-firewall:offscreen] loading ${variant.file} on ${variant.provider}`);
+
     const instance = new Gliner({
       tokenizerPath: MODEL_REPO,
       onnxSettings: {
-        modelPath: `https://huggingface.co/${MODEL_REPO}/resolve/main/${MODEL_FILE}`,
-        // WebGPU where available, plain WASM otherwise. The spec's hardware
-        // tiers fall out of this one line.
-        executionProvider: caps.webgpu ? 'webgpu' : 'wasm',
+        modelPath: `https://huggingface.co/${MODEL_REPO}/resolve/main/${variant.file}`,
+        executionProvider: variant.provider,
         // ORT's .wasm binaries ship inside the extension rather than being
         // fetched from a CDN, so no remote code is ever loaded.
         wasmPaths: chrome.runtime.getURL('ort/'),
@@ -102,6 +134,7 @@ async function ensureModel(): Promise<void> {
 
     await instance.initialize();
     model = instance;
+    activeProvider = variant.provider;
     lastError = null;
   })();
 
@@ -119,12 +152,16 @@ async function detect(text: string, entities: string[], threshold: number): Prom
   await ensureModel();
   if (!model) return [];
 
-  const out = await model.inference({
-    texts: [text],
-    entities,
-    flatNer: true,
-    threshold,
-  });
+  const started = performance.now();
+  const out = await withTimeout(
+    model.inference({ texts: [text], entities, flatNer: true, threshold }),
+    INFERENCE_TIMEOUT_MS,
+    'inference',
+  );
+  console.info(
+    `[prompt-firewall:offscreen] inference ${(performance.now() - started).toFixed(0)}ms ` +
+      `for ${text.length} chars -> ${(out[0] ?? []).length} spans`,
+  );
 
   return (out[0] ?? []).map((e) => ({
     start: e.start,
@@ -151,6 +188,19 @@ chrome.runtime.onMessage.addListener(
             await ensureModel();
             reply({ type: 'ner:loaded', ok: true, error: null });
             return;
+          case 'ner:selftest': {
+            const sample = 'Amanda Britfield was my manager at Microsoft.';
+            const t0 = performance.now();
+            const spans = await detect(sample, DEFAULT_ENTITIES, 0.4);
+            reply({
+              type: 'ner:selftest-result',
+              ms: performance.now() - t0,
+              spans,
+              provider: activeProvider,
+              error: null,
+            });
+            return;
+          }
           case 'ner:detect':
             reply({
               type: 'ner:spans',
