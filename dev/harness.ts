@@ -6,7 +6,6 @@
 import { showToast } from '../src/content/ui/toast';
 import { showDiff, closeDiff } from '../src/content/ui/diff';
 import { showBlockPanel } from '../src/content/ui/cui-block';
-import { showChip } from '../src/content/ui/chip';
 import { scan } from '../src/worker/detectors';
 import { redact, revertOne } from '../src/worker/redact';
 import type { Placeholder } from '../src/shared/types';
@@ -58,20 +57,6 @@ const actions: Record<string, () => void> = {
       findings: scan(MARKED).findings.filter((f) => f.severity === 'block'),
       onDismiss: () => console.info('dismissed'),
     }),
-  chip: () =>
-    showChip(
-      {
-        decision: {
-          lane: 'searchable',
-          confidence: 0.9,
-          reason: 'Looks like a factual lookup',
-          source: 'rules',
-        },
-        onAccept: () => console.info('accepted'),
-        onDismiss: () => console.info('dismissed'),
-      },
-      document.querySelector<HTMLElement>('.bar'),
-    ),
 };
 
 for (const btn of document.querySelectorAll<HTMLButtonElement>('button[data-show]')) {

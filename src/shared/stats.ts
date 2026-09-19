@@ -39,6 +39,7 @@ export const KIND_INFO: Record<FindingKind, KindInfo> = {
   person: { label: 'Names', short: 'Names', tier: 'low' },
   organization: { label: 'Organizations', short: 'Orgs', tier: 'low' },
   location: { label: 'Places', short: 'Places', tier: 'low' },
+  custom: { label: 'Custom policy rules', short: 'Custom', tier: 'medium' },
 };
 
 export interface Summary {

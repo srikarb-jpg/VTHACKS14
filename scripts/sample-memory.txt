@@ -1,0 +1,5 @@
+Kayden is a junior at Virginia Tech studying computer science and lives in Blacksburg, Virginia, near Main Street.
+Works part-time at Contoso Health as a data analyst, reporting to Amanda Britfield.
+Has type 1 diabetes and manages it with a pump. Girlfriend Priya lives in Richmond. Younger brother Marcus is in high school.
+Building a hackathon project called Prompt Firewall. Prefers Python and TypeScript. Uses Claude for coding help.
+Email is kayden.m@vt.edu and phone is 540-555-0142. Earns about $24 an hour. GitHub username kaydenm42.
