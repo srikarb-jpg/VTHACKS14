@@ -76,6 +76,8 @@ export type FromBackground =
       spans: NerSpan[][];
       /** Model time only. */
       inferMs: number;
+      loadMs: number;
+      bootId: string;
       /** Model time plus the background->offscreen messaging round trip. */
       roundTripMs: number;
       error: string | null;

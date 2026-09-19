@@ -64,6 +64,9 @@ type GlinerInstance = InstanceType<GlinerModule['Gliner']>;
 
 let model: GlinerInstance | null = null;
 let activeProvider = 'none';
+
+/** Identifies this module instance. Changes only if the document restarts. */
+const BOOT_ID = Math.random().toString(36).slice(2, 8);
 let loading: Promise<void> | null = null;
 let lastError: string | null = null;
 
@@ -157,9 +160,19 @@ async function detect(
   texts: string[],
   entities: string[],
   threshold: number,
-): Promise<{ spans: NerSpan[][]; inferMs: number }> {
+): Promise<{ spans: NerSpan[][]; inferMs: number; loadMs: number }> {
+  const loadStart = performance.now();
   await ensureModel();
-  if (!model || texts.length === 0) return { spans: texts.map(() => []), inferMs: 0 };
+  const loadMs = performance.now() - loadStart;
+  if (loadMs > 100) {
+    console.warn(
+      `[prompt-firewall:offscreen] model (re)loaded in ${loadMs.toFixed(0)}ms — ` +
+        `the document was torn down since the last call`,
+    );
+  }
+  if (!model || texts.length === 0) {
+    return { spans: texts.map(() => []), inferMs: 0, loadMs };
+  }
 
   const started = performance.now();
   const out = await withTimeout(
@@ -174,6 +187,7 @@ async function detect(
   );
 
   return {
+    loadMs,
     inferMs: performance.now() - started,
     spans: texts.map((_, i) =>
       (out[i] ?? []).map((e) => ({
@@ -196,6 +210,9 @@ chrome.runtime.onMessage.addListener(
     void (async () => {
       try {
         switch (msg.type) {
+          case 'ner:ping':
+            reply({ type: 'ner:pong', bootId: BOOT_ID, loaded: model !== null });
+            return;
           case 'ner:probe':
             reply({ type: 'ner:probe-result', probe: await probe(), loaded: model !== null, error: lastError });
             return;
@@ -219,7 +236,14 @@ chrome.runtime.onMessage.addListener(
           }
           case 'ner:detect': {
             const r = await detect(msg.texts, msg.entities ?? DEFAULT_ENTITIES, msg.threshold ?? 0.5);
-            reply({ type: 'ner:spans', spans: r.spans, inferMs: r.inferMs, error: null });
+            reply({
+              type: 'ner:spans',
+              spans: r.spans,
+              inferMs: r.inferMs,
+              loadMs: r.loadMs,
+              bootId: BOOT_ID,
+              error: null,
+            });
             return;
           }
           default:
@@ -237,5 +261,5 @@ chrome.runtime.onMessage.addListener(
 
 void (async () => {
   const caps = await probe();
-  console.info('[prompt-firewall:offscreen] ready', caps);
+  console.info(`[prompt-firewall:offscreen] ready boot=${BOOT_ID}`, caps);
 })();

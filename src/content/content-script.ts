@@ -346,9 +346,16 @@ async function runNer(text: string): Promise<void> {
       // worker. Whichever dominates is the thing to fix.
       timing =
         ` | infer ${res.inferMs.toFixed(0)}ms` +
-        ` + offscreen-msg ${(res.roundTripMs - res.inferMs).toFixed(0)}ms` +
+        ` + model-load ${res.loadMs.toFixed(0)}ms` +
+        ` + offscreen-msg ${(res.roundTripMs - res.inferMs - res.loadMs).toFixed(0)}ms` +
         ` + sw-msg ${(totalMs - res.roundTripMs).toFixed(0)}ms` +
-        ` = ${totalMs.toFixed(0)}ms`;
+        ` = ${totalMs.toFixed(0)}ms [boot ${res.bootId}]`;
+      if (res.loadMs > 1000) {
+        console.warn(
+          `[prompt-firewall] offscreen document was torn down and reloaded the model ` +
+            `(${res.loadMs.toFixed(0)}ms). Keepalive may not be holding.`,
+        );
+      }
       setNerTiming(Math.round(res.inferMs), Math.round(totalMs));
       if (res.error) {
         console.warn('[prompt-firewall] ner error', res.error);

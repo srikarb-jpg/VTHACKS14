@@ -32,7 +32,9 @@ export type OffscreenRequest =
   /** Batched: one entry of spans per input text. Chunks are sent together. */
   | { type: 'ner:detect'; texts: string[]; entities?: string[]; threshold?: number }
   /** One inference on a fixed string, with timing. Diagnostics only. */
-  | { type: 'ner:selftest' };
+  | { type: 'ner:selftest' }
+  /** No-op that counts as activity, so Chrome keeps the document resident. */
+  | { type: 'ner:ping' };
 
 export type OffscreenResponse =
   | { type: 'ner:probe-result'; probe: Probe; loaded: boolean; error: string | null }
@@ -42,7 +44,19 @@ export type OffscreenResponse =
       spans: NerSpan[][];
       /** Pure model time inside the offscreen document. */
       inferMs: number;
+      /**
+       * Time spent in ensureModel(). Nonzero on any call after the first
+       * means the offscreen document was torn down and the model reloaded.
+       */
+      loadMs: number;
+      /**
+       * Random per module load. If this changes between calls, the offscreen
+       * document was destroyed and recreated -- which is the only way the
+       * model can need reloading.
+       */
+      bootId: string;
       error: string | null;
     }
   | { type: 'ner:selftest-result'; ms: number; spans: NerSpan[]; provider: string; error: string | null }
+  | { type: 'ner:pong'; bootId: string; loaded: boolean }
   | { type: 'ner:error'; error: string };

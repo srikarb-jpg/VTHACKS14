@@ -45,8 +45,38 @@ export async function ensureOffscreen(): Promise<void> {
   return creating;
 }
 
+/**
+ * Keepalive.
+ *
+ * Chrome tears down an offscreen document it believes is idle. For a page
+ * whose entire purpose is to hold ~183 MB of model weights in memory, that
+ * is ruinous: the next request pays the full reload, which measured at
+ * ~18 seconds against 302 ms of actual inference.
+ *
+ * A periodic no-op message counts as activity and keeps it resident. The
+ * interval has to be comfortably under the teardown window, and it is
+ * cheap -- one message every 20 s.
+ */
+const KEEPALIVE_MS = 20_000;
+let keepalive: ReturnType<typeof setInterval> | null = null;
+
+function startKeepalive(): void {
+  if (keepalive !== null) return;
+  keepalive = setInterval(() => {
+    void chrome.runtime
+      .sendMessage({ type: 'ner:ping', target: 'offscreen' })
+      .catch(() => {
+        // The document is gone; stop pinging and let the next request
+        // recreate it.
+        if (keepalive !== null) clearInterval(keepalive);
+        keepalive = null;
+      });
+  }, KEEPALIVE_MS);
+}
+
 /** Send a request to the offscreen host, starting it if necessary. */
 export async function askOffscreen(req: OffscreenRequest): Promise<OffscreenResponse> {
   await ensureOffscreen();
+  startKeepalive();
   return (await chrome.runtime.sendMessage({ ...req, target: 'offscreen' })) as OffscreenResponse;
 }

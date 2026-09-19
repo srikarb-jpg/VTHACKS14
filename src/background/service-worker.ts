@@ -93,6 +93,8 @@ async function handle(msg: ToBackground, tabId: number | undefined): Promise<Fro
             type: 'ner:spans',
             spans: [],
             inferMs: 0,
+            loadMs: 0,
+            bootId: 'none',
             roundTripMs,
             error: r.type === 'ner:error' ? r.error : 'unexpected',
           };
