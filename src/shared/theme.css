@@ -1,0 +1,99 @@
+/**
+ * Design tokens: the final "violet and green" palette.
+ *
+ * Violet is the product, green is the promise (protected). Every text pair was
+ * checked against WCAG AA: text is at least 6.8:1 and graphics at least 3.8:1.
+ * Severity never relies on colour alone: high is a solid bar, medium a lighter
+ * bar, blocked is hatched.
+ *
+ * Change a value here and both the popup and the dashboard follow.
+ */
+:root {
+  --pf-bg: #f3efff;
+  --pf-paper: #ffffff;
+  --pf-wash: #f8f5ff;
+  --pf-line: #ddd3fa;
+
+  --pf-text: #1e1247;
+  --pf-muted: #54448f;
+
+  --pf-ink: #5b3fd1;
+  --pf-on-ink: #ffffff;
+  --pf-slate: #8a70e6; /* medium-severity bar */
+  --pf-spark: #34d399; /* the one small accent */
+
+  --pf-nav: #3e2a9c;
+  --pf-nav-text: #ffffff;
+  --pf-nav-muted: #ddd5ff;
+  --pf-nav-active: rgba(255, 255, 255, 0.16);
+
+  --pf-safe: #0e9468;
+  --pf-safe-wash: #ddf7ec;
+  --pf-safe-text: #075e45;
+
+  --pf-hold: #9a5a00;
+  --pf-hold-wash: #fff0d4;
+  --pf-hold-text: #6b3a00;
+
+  --pf-font-ui: 'Hanken Grotesk Variable', 'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --pf-font-display: 'Bricolage Grotesque Variable', 'Bricolage Grotesque', 'Hanken Grotesk Variable', system-ui, sans-serif;
+  --pf-font-hand: 'Caveat', 'Bricolage Grotesque Variable', cursive;
+
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font: 14px/1.4 var(--pf-font-ui);
+  color: var(--pf-text);
+  background: var(--pf-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--pf-ink);
+  outline-offset: 2px;
+}
+
+/* Redaction bars: the severity language used across popup and dashboard. */
+.bar {
+  display: inline-block;
+  flex: none;
+  height: 7px;
+  width: 14px;
+  border-radius: 2px;
+}
+.bar-high { background: var(--pf-ink); }
+.bar-medium { background: var(--pf-slate); }
+.bar-low { background: none; height: 6px; border-bottom: 2px dotted var(--pf-slate); border-radius: 0; }
+.bar-block {
+  border: 1px solid var(--pf-ink);
+  background: repeating-linear-gradient(135deg, var(--pf-ink) 0 3px, var(--pf-paper) 3px 6px);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

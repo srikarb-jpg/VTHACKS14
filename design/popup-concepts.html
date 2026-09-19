@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prompt Firewall popup concepts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #1a2238;
+  --ink-2: #2b3556;
+  --slate: #8a94ab;
+  --muted: #5b657a;
+  --line: #dce1ea;
+  --wash: #eff2f7;
+  --paper: #ffffff;
+  --safe: #0e8a6a;
+  --safe-wash: #e2f4ee;
+  --hold: #a86a10;
+  --hold-wash: #fbefd9;
+  --board: #dfe4ec;
+  --font-ui: "Hanken Grotesk", system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque", "Hanken Grotesk", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--board);
+  color: var(--ink);
+  font: 400 14px/1.45 var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* ---------- board ---------- */
+.board { max-width: 1440px; margin: 0 auto; padding: 40px 24px 64px; }
+.board > header { max-width: 62ch; margin-bottom: 36px; }
+.board h1 { font: 800 30px/1.1 var(--font-display); margin: 0 0 10px; letter-spacing: -.01em; }
+.board header p { margin: 0; color: var(--muted); }
+.concepts { display: flex; flex-wrap: wrap; gap: 40px 36px; align-items: flex-start; }
+.concept { display: flex; flex-direction: column; gap: 14px; }
+.concept > .cap { max-width: 360px; }
+.concept > .cap h2 { font: 700 17px/1.2 var(--font-display); margin: 0 0 4px; }
+.concept > .cap p { margin: 0; color: var(--muted); font-size: 13px; }
+.frame {
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(26,34,56,.14), 0 18px 40px -12px rgba(26,34,56,.35);
+  overflow: hidden;
+}
+
+/* ---------- shared pieces ---------- */
+.mark { width: 22px; height: 22px; flex: none; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--safe); flex: none; }
+.dot.off { background: var(--slate); }
+.sw {
+  position: relative; width: 40px; height: 24px; border-radius: 12px; border: 0; padding: 0;
+  background: var(--slate); flex: none; transition: background .15s;
+}
+.sw::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; transition: transform .15s;
+}
+.sw[aria-checked="true"] { background: var(--safe); }
+.sw[aria-checked="true"]::after { transform: translateX(16px); }
+
+/* redaction bars: the tier system */
+.bar { display: inline-block; height: .8em; border-radius: 2px; vertical-align: -.06em; }
+.bar.high { background: var(--ink); }
+.bar.med { background: var(--slate); }
+.dotted { border-bottom: 2px dotted var(--slate); }
+.ph {
+  display: inline-block; padding: 0 5px; border-radius: 3px; background: var(--ink); color: #fff;
+  font-weight: 600; font-size: .86em; letter-spacing: .02em;
+}
+.ph.med { background: #5d6884; }
+
+/* ================= A: status first ================= */
+.pa { width: 360px; background: var(--paper); }
+.pa .top { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; }
+.pa .top b { font: 700 15px var(--font-display); flex: 1; }
+.pa .kebab { border: 0; background: none; padding: 4px 6px; border-radius: 6px; color: var(--muted); font-size: 18px; line-height: 1; }
+.pa .kebab:hover { background: var(--wash); }
+.pa .status {
+  display: flex; align-items: center; gap: 8px; margin: 0 16px; padding: 8px 12px;
+  background: var(--safe-wash); border-radius: 999px; color: #0a5f49; font-weight: 600; font-size: 13px;
+}
+.pa .tally { display: flex; align-items: stretch; gap: 14px; padding: 16px; }
+.pa .tally .num {
+  background: var(--ink); color: #fff; border-radius: 4px; padding: 2px 18px 6px;
+  font: 800 56px/1 var(--font-display); letter-spacing: -.02em; display: grid; place-items: center;
+}
+.pa .tally p { margin: 0; align-self: center; color: var(--muted); }
+.pa .tally p strong { display: block; color: var(--ink); font-size: 15px; }
+.pa .modes { padding: 0 16px 14px; }
+.seg { display: flex; background: var(--wash); border-radius: 8px; padding: 3px; gap: 2px; }
+.seg button { flex: 1; border: 0; background: none; padding: 6px 4px; border-radius: 6px; font-weight: 600; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--paper); color: var(--ink); box-shadow: 0 1px 2px rgba(26,34,56,.18); }
+.pa .modes small { display: block; margin-top: 8px; color: var(--muted); min-height: 2.9em; }
+.tabs { display: flex; gap: 20px; padding: 0 16px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; background: none; padding: 11px 0; color: var(--muted); font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+.pa .list { list-style: none; margin: 0; padding: 0; min-height: 168px; }
+.pa .list li { display: flex; align-items: center; gap: 12px; padding: 11px 16px; border-bottom: 1px solid var(--line); }
+.pa .list .when { width: 58px; color: var(--muted); font-size: 12px; flex: none; }
+.pa .list .what { flex: 1; min-width: 0; }
+.pa .list .what b { display: block; font-weight: 600; }
+.pa .list .what span { color: var(--muted); font-size: 12px; }
+.pa .list .glyphs { display: flex; gap: 4px; align-items: center; font-size: 15px; }
+.pa .list .glyphs .bar { width: 22px; }
+.pa .list .glyphs .bar.s { width: 14px; }
+.pa .list .glyphs .low { width: 22px; height: 8px; border-bottom: 2px dotted var(--slate); }
+.pa .list .name { flex: 1; font-weight: 600; }
+.pa .list .name span { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+.pa .list .gray { color: var(--muted); }
+.pa .foot { padding: 12px 16px; display: flex; gap: 8px; }
+.btn {
+  border: 0; border-radius: 8px; padding: 9px 14px; font-weight: 700; background: var(--ink); color: #fff;
+}
+.btn:hover { background: var(--ink-2); }
+.btn.ghost { background: var(--wash); color: var(--ink); }
+.btn.ghost:hover { background: var(--line); }
+.pa .foot .btn { flex: 1; }
+[hidden] { display: none !important; }
+
+/* ================= B: review desk ================= */
+.pb { width: 660px; background: var(--paper); display: flex; flex-direction: column; }
+.pb .bar-top { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.pb .search {
+  flex: 1; display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: var(--wash);
+  border-radius: 8px; color: var(--muted);
+}
+.pb .search input { border: 0; background: none; font: inherit; color: var(--ink); width: 100%; outline: none; }
+.pb .search:focus-within { box-shadow: 0 0 0 2px var(--ink); }
+.pb .cols { display: grid; grid-template-columns: 240px 1fr; min-height: 330px; }
+.pb .rail { border-right: 1px solid var(--line); background: var(--wash); padding: 8px; }
+.pb .rail h3 { font: 600 12px var(--font-ui); color: var(--muted); margin: 6px 8px 8px; }
+.pb .rail button {
+  display: flex; width: 100%; align-items: center; gap: 10px; padding: 9px 10px; border: 0;
+  background: none; border-radius: 8px; text-align: left;
+}
+.pb .rail button:hover { background: rgba(26,34,56,.06); }
+.pb .rail button[aria-current="true"] { background: var(--ink); color: #fff; }
+.pb .rail .t { flex: 1; min-width: 0; }
+.pb .rail .t b { display: block; font-weight: 600; }
+.pb .rail .t span { font-size: 12px; opacity: .7; }
+.pb .rail .g { width: 26px; height: 12px; border-radius: 2px; flex: none; }
+.pb .rail .g.high { background: var(--ink); box-shadow: 0 0 0 1px rgba(255,255,255,.5); }
+.pb .rail .g.med { background: var(--slate); }
+.pb .rail .g.low { height: 8px; background: none; border-bottom: 2px dotted var(--slate); border-radius: 0; }
+.pb .rail .g.off { background: none !important; border: 0; border-bottom: 2px dotted var(--slate); height: 8px; border-radius: 0; box-shadow: none; }
+.pb .detail { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+.pb .detail h2 { font: 700 20px/1.15 var(--font-display); margin: 0; }
+.pb .detail .meta { color: var(--muted); margin: 2px 0 0; }
+.pb .cmp { display: grid; gap: 8px; }
+.pb .cmp div { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.pb .cmp div em { display: block; font-style: normal; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+.pb .cmp .after { background: var(--wash); border-color: transparent; }
+.pb .detail .actions { display: flex; gap: 8px; margin-top: auto; }
+.pb .detail .note { color: var(--muted); font-size: 12px; margin: 0; }
+.pb .base { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+.pb .base a { color: var(--ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--safe-wash); color: #0a5f49; }
+.pill.hold { background: var(--hold-wash); color: var(--hold); }
+
+/* ================= C: quick settings, dark ================= */
+.pc { width: 340px; background: #141a2e; color: #eef1f8; --line: #2a3350; --muted: #a3adc6; --wash: #1d2540; }
+.pc .hd { display: flex; align-items: center; gap: 10px; padding: 14px 16px; }
+.pc .hd b { flex: 1; font: 700 16px var(--font-display); }
+.pc .tier { font-size: 12px; font-weight: 600; background: #2a3350; padding: 3px 10px; border-radius: 999px; }
+.pc section { padding: 14px 16px; border-top: 1px solid var(--line); }
+.pc h3 { font: 700 15px var(--font-display); margin: 0 0 10px; }
+.pc .row { display: flex; align-items: center; gap: 12px; padding: 7px 0; }
+.pc .row .l { flex: 1; min-width: 0; }
+.pc .row .l small { display: block; color: var(--muted); }
+.pc .link { color: #7fe0c4; font-weight: 600; text-decoration: none; }
+.pc .link:hover { text-decoration: underline; }
+.pc .sec-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
+.pc .sec-head h3 { margin: 0; }
+.pc .radio { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; width: 100%; background: none; border: 0; text-align: left; }
+.pc .radio i { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--slate); margin-top: 2px; flex: none; position: relative; }
+.pc .radio[aria-checked="true"] i { border-color: #7fe0c4; }
+.pc .radio[aria-checked="true"] i::after { content: ""; position: absolute; inset: 2px; border-radius: 50%; background: #7fe0c4; }
+.pc .radio b { display: block; font-weight: 600; }
+.pc .radio small { color: var(--muted); }
+.pc .ready { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+.pc .ready span:last-child { margin-left: auto; color: var(--muted); font-size: 13px; }
+.pc .dot.hold { background: #f0b04a; }
+.pc .fallback { margin: 8px 0 0; padding: 10px 12px; background: var(--wash); border-radius: 8px; color: var(--muted); font-size: 13px; }
+.pc .receipt { text-align: center; padding: 16px; border-top: 1px solid var(--line); }
+.pc .receipt p { margin: 0 0 12px; color: #dfe4f1; }
+.pc .receipt .btn { width: 100%; background: #ffd66b; color: #1a2238; }
+.pc .receipt .btn:hover { background: #ffe08f; }
+.pc .nav { display: flex; justify-content: space-between; padding: 12px 16px 14px; }
+.pc .nav a { color: var(--muted); text-decoration: none; font-weight: 500; }
+.pc .nav a:hover { color: #fff; }
+
+@media (max-width: 760px) {
+  .pb { width: 100%; }
+  .pb .cols { grid-template-columns: 1fr; }
+  .pb .rail { border-right: 0; border-bottom: 1px solid var(--line); }
+}
+@media (prefers-reduced-motion: reduce) { .sw, .sw::after { transition: none; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="mark" viewBox="0 0 24 24">
+    <path d="M12 2 4 5v6c0 5 3.4 9.3 8 11 4.6-1.7 8-6 8-11V5l-8-3z" fill="currentColor"/>
+    <rect x="7.5" y="10" width="9" height="3.2" rx="1" fill="#fff"/>
+  </symbol>
+</svg>
+
+<main class="board">
+  <header>
+    <h1>Prompt Firewall popup concepts</h1>
+    <p>Three directions for the toolbar popup. The popup stays small and answers three questions: is it on here, what did it catch, and what can I change fast. Editing and review happen on the page. Every concept uses the same redaction-bar language for severity: a solid bar is redacted high severity, a slate bar is redacted medium, and a dotted underline is highlighted only.</p>
+  </header>
+
+  <div class="concepts">
+
+    <!-- ================= A ================= -->
+    <section class="concept">
+      <div class="cap">
+        <h2>A. Status first</h2>
+        <p>Borrows Honey's state-in-the-icon idea and its short recent list. Best if the popup is mostly glanced at.</p>
+      </div>
+      <div class="frame pa" id="A">
+        <div class="top">
+          <svg class="mark" style="color:var(--ink)"><use href="#mark"/></svg>
+          <b>Prompt Firewall</b>
+          <button class="kebab" aria-label="More options">&#8943;</button>
+        </div>
+        <div class="status"><span class="dot"></span> Protected on claude.ai</div>
+        <div class="tally">
+          <div class="num" aria-label="7 items redacted">7</div>
+          <p><strong>Items redacted this session</strong>2 prompts went to search instead of a model.</p>
+        </div>
+        <div class="modes">
+          <div class="seg" role="group" aria-label="Mode">
+            <button aria-pressed="false" data-mode="watch">Watch</button>
+            <button aria-pressed="true" data-mode="auto">Autopilot</button>
+            <button aria-pressed="false" data-mode="strict">Strict</button>
+          </div>
+          <small id="A-mode"></small>
+        </div>
+        <div class="tabs" role="tablist">
+          <button role="tab" aria-selected="true" data-tab="recent">Recent</button>
+          <button role="tab" aria-selected="false" data-tab="sites">Sites</button>
+        </div>
+        <ul class="list" id="A-recent">
+          <li>
+            <span class="when">2 min ago</span>
+            <span class="what"><b>Sent with redactions</b><span>API key, email</span></span>
+            <span class="glyphs"><i class="bar high"></i><i class="bar med s"></i></span>
+          </li>
+          <li>
+            <span class="when">14 min ago</span>
+            <span class="what"><b>Opened search results</b><span>No model call</span></span>
+          </li>
+          <li>
+            <span class="when">31 min ago</span>
+            <span class="what"><b>Sent unchanged</b><span>1 name highlighted</span></span>
+            <span class="glyphs"><i class="low"></i></span>
+          </li>
+        </ul>
+        <ul class="list" id="A-sites" hidden>
+          <li><span class="dot"></span><span class="name">claude.ai<span>Checking prompts</span></span><button class="sw" role="switch" aria-checked="true" aria-label="Check prompts on claude.ai"></button></li>
+          <li><span class="dot"></span><span class="name">chatgpt.com<span>Checking prompts</span></span><button class="sw" role="switch" aria-checked="true" aria-label="Check prompts on chatgpt.com"></button></li>
+          <li class="gray"><span class="dot off"></span><span class="name">Other sites<span>Not supported yet</span></span></li>
+        </ul>
+        <div class="foot">
+          <button class="btn">Open dashboard</button>
+          <button class="btn ghost">Pause</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= B ================= -->
+    <section class="concept">
+      <div class="cap">
+        <h2>B. Review desk</h2>
+        <p>Borrows 1Password's list and detail split. Shows only the draft in the composer right now, so no prompt text is ever stored. Best for the redaction-diff demo moment.</p>
+      </div>
+      <div class="frame pb" id="B">
+        <div class="bar-top">
+          <svg class="mark" style="color:var(--ink)"><use href="#mark"/></svg>
+          <label class="search">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg>
+            <input type="search" placeholder="Filter findings" aria-label="Filter findings">
+          </label>
+          <span class="pill" id="B-count"></span>
+          <button class="btn ghost">Pause</button>
+        </div>
+        <div class="cols">
+          <nav class="rail" aria-label="Findings in this draft">
+            <h3>In this draft</h3>
+            <div id="B-list"></div>
+          </nav>
+          <div class="detail" id="B-detail"></div>
+        </div>
+        <div class="base">
+          <span>7 redacted this session</span>
+          <a href="#">Open dashboard</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= C ================= -->
+    <section class="concept">
+      <div class="cap">
+        <h2>C. Quick settings</h2>
+        <p>Borrows Grammarly's per-site switch, its all-settings link, and its report-on-what-I-did footer. Shows the tier fallback on purpose, since it is a feature.</p>
+      </div>
+      <div class="frame pc" id="C">
+        <div class="hd">
+          <svg class="mark" style="color:#fff"><use href="#mark"/></svg>
+          <b>Prompt Firewall</b>
+          <span class="tier">Tier 0</span>
+        </div>
+        <section>
+          <div class="sec-head"><h3>Quick settings</h3><a class="link" href="#">All settings &#8599;</a></div>
+          <div class="row"><div class="l">Check prompts on <b>claude.ai</b></div><button class="sw" role="switch" aria-checked="true" aria-label="Check prompts on claude.ai"></button></div>
+          <div class="row"><div class="l">Check prompts on <b>chatgpt.com</b></div><button class="sw" role="switch" aria-checked="true" aria-label="Check prompts on chatgpt.com"></button></div>
+        </section>
+        <section role="radiogroup" aria-label="Mode">
+          <h3>Mode</h3>
+          <button class="radio" role="radio" aria-checked="false"><i></i><span><b>Watch</b><small>Logs findings, never changes text</small></span></button>
+          <button class="radio" role="radio" aria-checked="true"><i></i><span><b>Autopilot</b><small>Redacts keys, cards and emails</small></span></button>
+          <button class="radio" role="radio" aria-checked="false"><i></i><span><b>Strict</b><small>Asks before sending high severity</small></span></button>
+        </section>
+        <section>
+          <h3>On this device</h3>
+          <div class="ready"><span class="dot"></span><span>Scrubber</span><span>Ready</span></div>
+          <div class="ready"><span class="dot"></span><span>Router</span><span>Ready</span></div>
+          <div class="ready"><span class="dot hold"></span><span>Local model</span><span>Not available</span></div>
+          <p class="fallback">Without a local model, prompts go to search or straight to the site, and redaction still applies.</p>
+        </section>
+        <section>
+          <div class="sec-head"><h3>Trusted destinations</h3><a class="link" href="#">Edit list &#8599;</a></div>
+          <div class="ready"><span>2 destinations</span><span>Classification markings still blocked</span></div>
+        </section>
+        <div class="receipt">
+          <p>Prompt Firewall has kept 214 items out of your prompts since Sep 19.</p>
+          <button class="btn">View receipt</button>
+        </div>
+        <div class="nav"><a href="#">Tokenizer</a><a href="#">Dashboard</a></div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<script>
+/* switches */
+document.querySelectorAll('.sw').forEach(function (b) {
+  b.addEventListener('click', function () {
+    b.setAttribute('aria-checked', b.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
+  });
+});
+
+/* A: mode + tabs */
+var modeCopy = {
+  watch: 'Logs what it finds. Never changes your text.',
+  auto: 'Redacts keys, cards and emails before sending. Names are only highlighted.',
+  strict: 'Asks before sending anything high severity, and treats medium like high.'
+};
+var aModeEl = document.getElementById('A-mode');
+aModeEl.textContent = modeCopy.auto;
+document.querySelectorAll('#A .seg button').forEach(function (b) {
+  b.addEventListener('click', function () {
+    document.querySelectorAll('#A .seg button').forEach(function (o) { o.setAttribute('aria-pressed', 'false'); });
+    b.setAttribute('aria-pressed', 'true');
+    aModeEl.textContent = modeCopy[b.dataset.mode];
+  });
+});
+document.querySelectorAll('#A .tabs button').forEach(function (t) {
+  t.addEventListener('click', function () {
+    document.querySelectorAll('#A .tabs button').forEach(function (o) { o.setAttribute('aria-selected', 'false'); });
+    t.setAttribute('aria-selected', 'true');
+    document.getElementById('A-recent').hidden = t.dataset.tab !== 'recent';
+    document.getElementById('A-sites').hidden = t.dataset.tab !== 'sites';
+  });
+});
+
+/* B: findings + diff */
+var findings = [
+  { id: 'key', label: 'API key', tier: 'high', ph: 'API_KEY_1', redacted: true,
+    before: 'Use key <b>sk-demo-8f2a91c4</b> for the staging call.',
+    after: 'Use key <span class="ph">API_KEY_1</span> for the staging call.',
+    why: 'High severity. Redacted before sending and restored in the reply.' },
+  { id: 'email', label: 'Email address', tier: 'med', ph: 'EMAIL_1', redacted: true,
+    before: 'Reply to <b>priya.nair@acme.example</b> by Friday.',
+    after: 'Reply to <span class="ph med">EMAIL_1</span> by Friday.',
+    why: 'Medium severity. Redacted before sending and restored in the reply.' },
+  { id: 'person', label: 'Priya Nair', tier: 'low', ph: 'PERSON_1', redacted: false,
+    before: 'Ticket from <b class="dotted">Priya Nair</b> about billing.',
+    after: 'Ticket from <span class="ph med">PERSON_1</span> about billing.',
+    why: 'Possible name. Highlighted only, because name detection can be wrong.' },
+  { id: 'org', label: 'Acme Corp', tier: 'low', ph: 'ORG_1', redacted: false,
+    before: 'Escalate to the <b class="dotted">Acme Corp</b> account team.',
+    after: 'Escalate to the <span class="ph med">ORG_1</span> account team.',
+    why: 'Possible organization. Highlighted only, because detection can be wrong.' }
+];
+var sel = 'email';
+var listEl = document.getElementById('B-list');
+var detailEl = document.getElementById('B-detail');
+var countEl = document.getElementById('B-count');
+
+function renderB() {
+  var n = findings.filter(function (f) { return f.redacted; }).length;
+  countEl.textContent = n + ' of ' + findings.length + ' redacted';
+  listEl.innerHTML = '';
+  findings.forEach(function (f) {
+    var b = document.createElement('button');
+    b.setAttribute('aria-current', f.id === sel ? 'true' : 'false');
+    var glyph = f.redacted ? f.tier : 'off';
+    b.innerHTML = '<span class="t"><b>' + f.label + '</b><span>' +
+      (f.redacted ? 'Redacted' : 'Highlighted only') + '</span></span><i class="g ' + glyph + '"></i>';
+    b.addEventListener('click', function () { sel = f.id; renderB(); });
+    listEl.appendChild(b);
+  });
+  var f = findings.filter(function (x) { return x.id === sel; })[0];
+  var tierName = { high: 'High severity', med: 'Medium severity', low: 'Low severity' }[f.tier];
+  detailEl.innerHTML =
+    '<div><h2>' + f.label + '</h2><p class="meta">' + tierName + '</p></div>' +
+    '<div class="cmp"><div><em>Your draft</em>' + f.before + '</div>' +
+    '<div class="after"><em>' + (f.redacted ? 'What gets sent' : 'What gets sent if redacted') + '</em>' + f.after + '</div></div>' +
+    '<p class="note">' + f.why + '</p>' +
+    '<div class="actions"><button class="btn" id="B-act">' + (f.redacted ? 'Keep original' : 'Redact') + '</button>' +
+    '<button class="btn ghost">Redact all ' + (f.tier === 'low' ? 'names' : 'like this') + '</button></div>';
+  document.getElementById('B-act').addEventListener('click', function () { f.redacted = !f.redacted; renderB(); });
+}
+renderB();
+
+/* C: mode radios */
+document.querySelectorAll('#C .radio').forEach(function (r) {
+  r.addEventListener('click', function () {
+    document.querySelectorAll('#C .radio').forEach(function (o) { o.setAttribute('aria-checked', 'false'); });
+    r.setAttribute('aria-checked', 'true');
+  });
+});
+</script>
+</body>
+</html>

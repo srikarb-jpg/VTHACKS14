@@ -18,6 +18,11 @@ export default defineConfig({
         // The harness is a dev page, but building it keeps it from silently
         // rotting when a component signature changes.
         harness: 'dev/harness.html',
+        // Popup and dashboard against a fake chrome API, for reviewing the layout.
+        preview: 'dev/preview.html',
+        // A fake thread for hover rehydration: a duplicated message and a
+        // streaming reply, which is what broke the reveal overlay.
+        revealLab: 'dev/reveal-lab.html',
       },
     },
   },

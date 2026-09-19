@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>reveal lab</title>
+    <style>
+      body { margin: 0; background: #1b1b1b; color: #ececec; font: 17px/1.65 Georgia, serif; }
+      .thread { max-width: 720px; margin: 0 auto; padding: 40px 20px 220px; }
+      .msg { margin: 26px 0; }
+      .user { background: #2c2c2c; border-radius: 14px; padding: 10px 16px; margin-left: auto; width: max-content; max-width: 70%; }
+      /* A screen-reader copy of the same message: clipped to a pixel, but its
+         text is in the DOM and it used to get a chip painted on it. */
+      .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    </style>
+  </head>
+  <body>
+    <div class="thread" id="thread"></div>
+    <script type="module" src="./reveal-lab.ts"></script>
+  </body>
+</html>

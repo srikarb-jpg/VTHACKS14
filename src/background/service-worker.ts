@@ -13,9 +13,9 @@ import * as vault from './vault';
 import { askOffscreen } from './offscreen';
 import { SUPPORTED_HOSTS } from '../shared/config';
 
-chrome.action.onClicked.addListener(() => {
-  void chrome.runtime.openOptionsPage();
-});
+// The toolbar button opens the popup (manifest: action.default_popup), which
+// links to the dashboard. An onClicked handler would never fire alongside a
+// popup, so there is none.
 
 /**
  * Preload the model.

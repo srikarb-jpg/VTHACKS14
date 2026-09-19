@@ -1,207 +1,141 @@
 /**
- * Dashboard. Reads the local usage log and renders it.
+ * Dashboard: two tabs, Overview and Settings.
  *
- * Honesty constraints from the spec, enforced here rather than left to the
- * slide deck: energy is shown as a RANGE, labelled an estimate, with the
- * methodology on the page. A judge with a calculator should find these
- * conservative.
+ * Overview answers "what did it do for me" in a few numbers, per time period.
+ * Everything is computed from the local usage log, which holds counts and
+ * labels only. Nothing here can show a prompt or a detected value, because
+ * neither exists to be read.
+ *
+ * Settings holds the switches and the local-AI panel.
  */
+import '../shared/fonts';
+import '../shared/theme.css';
+import './options.css';
+import { h } from '../shared/dom';
+import type { Child } from '../shared/dom';
+import { arrow, lock } from '../shared/icons';
 import { sendToBackground } from '../shared/messages';
-import type { FindingKind, Settings, UsageEvent } from '../shared/types';
 import type { Probe } from '../shared/ner';
-import { tokenColor, tokenize } from './tokenizer';
+import { ALL_TIME_MS, formatCount, lastDays, rangeStart, shortDate, summarize } from '../shared/stats';
+import type { Summary } from '../shared/stats';
+import type { Settings } from '../shared/types';
 
-const WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const root = document.getElementById('app');
+if (!root) throw new Error('missing #app');
+const app: HTMLElement = root;
 
-/**
- * Watt-hours per 1k output-equivalent tokens, as a range. Public vendor and
- * third-party figures for a median text prompt cluster in the low fractions
- * of a watt-hour; we present a band rather than a point estimate because the
- * true number depends on model, hardware and batching, none of which we know.
- */
-const WH_PER_1K_TOKENS_LOW = 0.05;
-const WH_PER_1K_TOKENS_HIGH = 0.3;
+type View = 'overview' | 'settings';
+const currentView = (): View => (location.hash === '#settings' ? 'settings' : 'overview');
 
-const $ = (id: string): HTMLElement => {
-  const el = document.getElementById(id);
-  if (!el) throw new Error(`missing #${id}`);
-  return el;
-};
+// ---------------------------------------------------------------------------
+// chrome
+// ---------------------------------------------------------------------------
 
-function card(stat: string, label: string): HTMLElement {
-  const d = document.createElement('div');
-  d.className = 'card';
-  d.innerHTML = `<div class="stat"></div><div class="label"></div>`;
-  d.querySelector('.stat')!.textContent = stat;
-  d.querySelector('.label')!.textContent = label;
-  return d;
-}
-
-function renderStats(events: UsageEvent[]): void {
-  const redactions = events.reduce(
-    (n, e) => n + Object.values(e.redactions).reduce((a, b) => a + b, 0),
-    0,
-  );
-  const blocked = events.filter((e) => e.blocked).length;
-  const offFrontier = events.filter((e) => e.lane !== 'frontier').length;
-  const share = events.length ? Math.round((offFrontier / events.length) * 100) : 0;
-  const medianScan = median(events.map((e) => e.scanMs));
-
-  const host = $('stats');
-  host.replaceChildren(
-    card(String(events.length), 'prompts intercepted'),
-    card(String(redactions), 'items redacted'),
-    card(String(blocked), 'sends blocked (marked)'),
-    card(`${share}%`, 'never needed the frontier model'),
-    card(`${medianScan.toFixed(1)} ms`, 'median added latency'),
+function topbar(view: View): HTMLElement {
+  const tab = (id: View, label: string): HTMLElement =>
+    h('a', { class: 'tab', href: `#${id}`, 'aria-current': view === id ? 'page' : undefined }, label);
+  return h(
+    'header',
+    { class: 'topbar' },
+    h('div', { class: 'brand' }, lock(30), h('span', {}, 'Prompt Firewall')),
+    h('nav', { class: 'tabs', 'aria-label': 'Sections' }, tab('overview', 'Overview'), tab('settings', 'Settings')),
   );
 }
 
-function median(xs: number[]): number {
-  if (!xs.length) return 0;
-  const s = [...xs].sort((a, b) => a - b);
-  const mid = Math.floor(s.length / 2);
-  return s.length % 2 ? (s[mid] ?? 0) : ((s[mid - 1] ?? 0) + (s[mid] ?? 0)) / 2;
+// ---------------------------------------------------------------------------
+// overview
+// ---------------------------------------------------------------------------
+
+interface Period {
+  name: string;
+  range: string;
+  s: Summary;
 }
 
-function renderBreakdown(events: UsageEvent[]): void {
-  const totals = new Map<FindingKind, number>();
-  for (const e of events) {
-    for (const [k, n] of Object.entries(e.redactions)) {
-      totals.set(k as FindingKind, (totals.get(k as FindingKind) ?? 0) + (n ?? 0));
-    }
-  }
-  const host = $('breakdown');
-  if (!totals.size) {
-    host.innerHTML = `<div class="note">Nothing caught yet. Use a supported chat site and it will fill in.</div>`;
-    return;
-  }
-  host.replaceChildren(
-    ...[...totals.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([kind, n]) => {
-        const row = document.createElement('div');
-        row.className = 'row';
-        row.innerHTML = `<span></span><strong></strong>`;
-        row.querySelector('span')!.textContent = kind.replaceAll('_', ' ');
-        row.querySelector('strong')!.textContent = String(n);
-        return row;
-      }),
-  );
-}
+const numChip = (v: string): HTMLElement => h('span', { class: 'num chip' }, v);
 
-function renderEnergy(events: UsageEvent[]): void {
-  const tokens = events.filter((e) => e.lane !== 'frontier').reduce((n, e) => n + e.promptTokens, 0);
-  const low = ((tokens / 1000) * WH_PER_1K_TOKENS_LOW).toFixed(2);
-  const high = ((tokens / 1000) * WH_PER_1K_TOKENS_HIGH).toFixed(2);
-  $('energy').innerHTML = `
-    <div class="stat">${tokens.toLocaleString()}</div>
-    <div class="label">prompt tokens that did not reach a frontier model</div>
-    <div class="row" style="margin-top:12px"><span>Estimated energy avoided</span><strong>${low} – ${high} Wh</strong></div>
-    <div class="note" style="margin-top:10px">
-      A range, not a figure. Assumes ${WH_PER_1K_TOKENS_LOW}–${WH_PER_1K_TOKENS_HIGH} Wh per 1k tokens,
-      which spans published vendor and third-party estimates for median text inference.
-      Per-prompt energy is genuinely small; the argument here is about the aggregate habit,
-      not about any single prompt.
-    </div>`;
-}
-
-function renderTokenizer(): void {
-  const input = $('tok-input') as HTMLTextAreaElement;
-  const out = $('tok-out');
-  const count = $('tok-count');
-  const draw = (): void => {
-    const toks = tokenize(input.value);
-    out.replaceChildren(
-      ...toks.map((t, i) => {
-        const s = document.createElement('span');
-        s.className = 'tk';
-        s.style.background = tokenColor(i);
-        s.textContent = t.replace(/ /g, '·');
-        return s;
-      }),
-    );
-    count.textContent = `${toks.length} tokens · ${input.value.length} characters · approximate, not a real BPE vocabulary`;
-  };
-  input.addEventListener('input', draw);
-  draw();
-}
-
-async function renderSettings(): Promise<void> {
-  const { settings } = await sendToBackground({ type: 'settings:get' });
-  const host = $('settings');
-  host.replaceChildren();
-
-  const toggle = (key: keyof Settings, label: string, note: string): HTMLElement => {
-    const row = document.createElement('label');
-    row.className = 'row';
-    row.style.cursor = 'pointer';
-    const box = document.createElement('input');
-    box.type = 'checkbox';
-    box.checked = Boolean(settings[key]);
-    box.addEventListener('change', () => {
-      void sendToBackground({ type: 'settings:set', patch: { [key]: box.checked } });
-    });
-    const text = document.createElement('span');
-    text.innerHTML = `${label}<div class="note">${note}</div>`;
-    row.append(text, box);
-    return row;
-  };
-
-  host.append(
-    toggle('enabled', 'Enabled', 'Master switch.'),
-    toggle('showRoutingChips', 'Routing hints', 'Suggest a cheaper lane. Never blocks Enter.'),
-    toggle(
-      'nerEnabled',
-      'Local AI detection',
-      'Highlight names and organizations using the local model. Requires the download below.',
-    ),
-    toggle(
-      'autoRedactNames',
-      'Replace names without confirming',
-      'Off by default: names found by the model are highlighted, and you click one to mark it ' +
-        'for replacement. Turning this on replaces any name the model is confident about ' +
-        'without asking \u2014 fewer clicks, but the model will occasionally be wrong.',
-    ),
-    toggle(
-      'searchLaneEnabled',
-      'Search lane',
-      'Off by default. Turning this on sends a rewritten, scrubbed query to a third-party search API — the only outbound call this extension can make.',
+function ticket(p: Period): HTMLElement {
+  return h(
+    'article',
+    { class: 'ticket' },
+    h('div', { class: 'ticket-head' }, h('div', { class: 'ticket-name' }, p.name), h('div', { class: 'ticket-range' }, p.range)),
+    h('div', { class: 'perf', 'aria-hidden': 'true' }),
+    h(
+      'div',
+      { class: 'ticket-body' },
+      h('div', {}, h('div', { class: 'label' }, 'Items redacted'), numChip(formatCount(p.s.items))),
+      h('div', {}, h('div', { class: 'label' }, 'Prompts checked'), h('span', { class: 'num' }, formatCount(p.s.prompts))),
     ),
   );
 }
 
-function wireReceipt(events: UsageEvent[]): void {
-  $('copy-receipt').addEventListener('click', () => {
-    const redactions = events.reduce(
-      (n, e) => n + Object.values(e.redactions).reduce((a, b) => a + b, 0),
-      0,
-    );
-    const offFrontier = events.filter((e) => e.lane !== 'frontier').length;
-    const text = [
-      'Prompt Firewall — 7 day receipt',
-      `${events.length} prompts intercepted`,
-      `${redactions} sensitive items redacted before sending`,
-      `${events.filter((e) => e.blocked).length} sends blocked for classification markings`,
-      `${offFrontier} prompts that never needed a frontier model`,
-      'All computed locally. No prompt text stored.',
-    ].join('\n');
-    void navigator.clipboard.writeText(text).then(() => {
-      $('receipt-status').textContent = 'Copied.';
-    });
+async function overview(): Promise<HTMLElement> {
+  const { events } = await sendToBackground({ type: 'usage:query', sinceMs: ALL_TIME_MS });
+  const now = Date.now();
+  const first = events[0]?.timestamp;
+  const span = (days: number): string => `${shortDate(rangeStart(days, now))} to ${shortDate(now)}`;
+
+  const periods: Period[] = [
+    { name: 'All time', range: first ? `Since ${shortDate(first)}` : 'No activity yet', s: summarize(events) },
+    { name: '7 days', range: span(7), s: summarize(lastDays(events, 7, now)) },
+    { name: '30 days', range: span(30), s: summarize(lastDays(events, 30, now)) },
+  ];
+
+  return h(
+    'div',
+    {},
+    h(
+      'section',
+      { class: 'hero' },
+      lock(120, { large: true, className: 'hero-lock' }),
+      h(
+        'div',
+        {},
+        h('h1', {}, "Here's what ", h('span', { class: 'hl' }, 'stayed private.')),
+        h('p', {}, 'Prompt Firewall counted everything on your device. It never stored what you typed.'),
+      ),
+      h('div', { class: 'aside-note' }, arrow(), h('span', {}, 'counted right here,', h('br'), 'not on our servers')),
+    ),
+    h(
+      'section',
+      { class: 'block' },
+      h('h2', {}, 'Kept out of your prompts'),
+      h('p', { class: 'sub' }, 'Personal details replaced before a prompt was sent, and how many prompts were checked.'),
+      h('div', { class: 'tickets' }, ...periods.map(ticket)),
+    ),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// settings
+// ---------------------------------------------------------------------------
+
+type BooleanSetting = { [K in keyof Settings]: Settings[K] extends boolean ? K : never }[keyof Settings];
+
+function toggle(settings: Settings, key: BooleanSetting, label: string, note: string): HTMLElement {
+  const box = h('input', { type: 'checkbox', role: 'switch', class: 'switch', 'data-setting': key });
+  box.checked = settings[key];
+  box.addEventListener('change', () => {
+    void sendToBackground({ type: 'settings:set', patch: { [key]: box.checked } });
   });
+  return h(
+    'label',
+    { class: 'setting' },
+    h('span', { class: 'setting-text' }, h('span', { class: 'setting-name' }, label), h('span', { class: 'setting-note' }, note)),
+    box,
+  );
 }
+
+const kv = (k: string, v: string): HTMLElement => h('div', { class: 'kv' }, h('span', {}, k), h('strong', {}, v));
 
 /**
  * Local AI panel.
  *
  * Probes capability BEFORE offering the download, so a machine that cannot
  * compile WASM says so in milliseconds instead of after fetching 183 MB.
+ * Error strings come from the background and are rendered as text, never HTML.
  */
-async function renderNer(): Promise<void> {
-  const host = $('ner');
-  host.innerHTML = '<div class="note">Checking this machine…</div>';
-
+async function fillNer(host: HTMLElement): Promise<void> {
   let probe: Probe;
   let loaded = false;
   let error: string | null = null;
@@ -213,47 +147,46 @@ async function renderNer(): Promise<void> {
   } catch (err) {
     // Most likely the offscreen document failed to be created at all. Say
     // so, rather than leaving the panel stuck on "Checking this machine".
-    host.innerHTML =
-      `<div class="note" style="color:#ff9c9c">Could not reach the detection host.</div>` +
-      `<div class="note" style="margin-top:6px">${String(err)}</div>` +
-      `<div class="note" style="margin-top:6px">Check chrome://extensions &rarr; Prompt Firewall &rarr; ` +
-      `<em>Inspect views: offscreen</em> for the underlying error. Pattern detection is unaffected.</div>`;
-    return;
-  }
-
-  const row = (k: string, v: string): string =>
-    `<div class="row"><span>${k}</span><strong>${v}</strong></div>`;
-
-  const backend = probe.webgpu ? 'WebGPU' : probe.wasm ? 'WebAssembly (CPU)' : 'unavailable';
-
-  host.innerHTML =
-    row('WebAssembly', probe.wasm ? 'available' : 'BLOCKED') +
-    row('WebGPU', probe.webgpu ? 'available' : 'not available') +
-    row('Backend that would be used', backend) +
-    row('Reported device memory', probe.deviceMemoryGb ? `${probe.deviceMemoryGb} GB` : 'unknown') +
-    row('Model', loaded ? 'loaded' : 'not loaded') +
-    (error ? `<div class="note" style="color:#ff9c9c;margin-top:8px">${error}</div>` : '');
-
-  if (!probe.wasm) {
-    host.insertAdjacentHTML(
-      'beforeend',
-      `<div class="note" style="margin-top:10px">
-         WebAssembly could not be compiled here, so local AI detection cannot run.
-         Pattern detection is unaffected and keeps working.
-       </div>`,
+    host.replaceChildren(
+      h('p', { class: 'note err' }, 'Could not reach the detection host.'),
+      h('p', { class: 'note' }, String(err)),
+      h(
+        'p',
+        { class: 'note' },
+        'Check chrome://extensions, then Prompt Firewall, then "Inspect views: offscreen" for the underlying error. Pattern detection is unaffected.',
+      ),
     );
     return;
   }
 
-  const btn = document.createElement('button');
-  btn.textContent = loaded ? 'Reload model' : 'Download and enable (~183 MB, once)';
-  btn.style.marginTop = '12px';
-  const status = document.createElement('span');
-  status.className = 'label';
-  status.style.marginLeft = '10px';
+  const backend = probe.webgpu ? 'WebGPU' : probe.wasm ? 'WebAssembly (CPU)' : 'unavailable';
+  const rows: Child[] = [
+    kv('WebAssembly', probe.wasm ? 'available' : 'BLOCKED'),
+    kv('WebGPU', probe.webgpu ? 'available' : 'not available'),
+    kv('Backend that would be used', backend),
+    kv('Reported device memory', probe.deviceMemoryGb ? `${probe.deviceMemoryGb} GB` : 'unknown'),
+    kv('Model', loaded ? 'loaded' : 'not loaded'),
+    error ? h('p', { class: 'note err' }, error) : null,
+  ];
 
-  btn.addEventListener('click', () => {
-    btn.disabled = true;
+  if (!probe.wasm) {
+    host.replaceChildren(
+      ...(rows.filter(Boolean) as Node[]),
+      h(
+        'p',
+        { class: 'note' },
+        'WebAssembly could not be compiled here, so local AI detection cannot run. Pattern detection is unaffected and keeps working.',
+      ),
+    );
+    return;
+  }
+
+  const status = h('span', { class: 'status-line' });
+  const load = h('button', { type: 'button', class: 'btn' }, loaded ? 'Reload model' : 'Download and enable (~183 MB, once)');
+  const test = h('button', { type: 'button', class: 'btn ghost' }, 'Run self-test');
+
+  load.addEventListener('click', () => {
+    load.disabled = true;
     status.textContent = 'Downloading… this takes a minute on first run.';
     void (async () => {
       const r = await sendToBackground({ type: 'ner:load' });
@@ -262,15 +195,11 @@ async function renderNer(): Promise<void> {
         status.textContent = 'Ready. Highlights will appear as you type.';
       } else {
         status.textContent = `Failed: ${r.error ?? 'unknown'}`;
-        btn.disabled = false;
+        load.disabled = false;
       }
     })();
   });
 
-  const test = document.createElement('button');
-  test.textContent = 'Run self-test';
-  test.style.marginTop = '12px';
-  test.style.marginLeft = '8px';
   test.addEventListener('click', () => {
     test.disabled = true;
     status.textContent = 'Running one inference…';
@@ -282,27 +211,106 @@ async function renderNer(): Promise<void> {
         return;
       }
       const found = r.spans.map((s) => `${s.text} (${s.label} ${Math.round(s.score * 100)}%)`);
-      status.textContent = `${r.ms.toFixed(0)} ms on ${r.provider} — ${
-        found.length ? found.join(', ') : 'no entities found'
-      }`;
+      status.textContent = `${r.ms.toFixed(0)} ms on ${r.provider}: ${found.length ? found.join(', ') : 'no entities found'}`;
     })();
   });
 
-  host.append(btn, test, status);
+  host.replaceChildren(...(rows.filter(Boolean) as Node[]), h('div', { class: 'actions-row' }, load, test, status));
 }
 
-async function main(): Promise<void> {
-  // First, and not awaited alongside anything slower: this panel is the one
-  // the user is looking for right now.
-  void renderNer();
+async function settingsView(): Promise<HTMLElement> {
+  const { settings } = await sendToBackground({ type: 'settings:get' });
 
-  const { events } = await sendToBackground({ type: 'usage:query', sinceMs: WINDOW_MS });
-  renderStats(events);
-  renderBreakdown(events);
-  renderEnergy(events);
-  renderTokenizer();
-  wireReceipt(events);
-  await renderSettings();
+  const ner = h('div', {}, h('p', { class: 'note' }, 'Checking this machine…'));
+  // Not awaited: the panel fills in when the probe returns, and nothing else
+  // on the page should wait for it.
+  void fillNer(ner);
+
+  return h(
+    'div',
+    {},
+    h('h1', { class: 'page-title' }, 'Settings'),
+    h('p', { class: 'note' }, 'Everything on this page was computed on this machine. No account, no server, no sync.'),
+    h(
+      'section',
+      { class: 'block' },
+      h('h2', {}, 'Protection'),
+      h('p', { class: 'sub' }, 'What Prompt Firewall does while you use a chat site.'),
+      h(
+        'div',
+        { class: 'card' },
+        toggle(settings, 'enabled', 'Enabled', 'Master switch.'),
+        toggle(settings, 'showRoutingChips', 'Routing hints', 'Suggest a cheaper lane. Never blocks Enter.'),
+        toggle(
+          settings,
+          'searchLaneEnabled',
+          'Search lane',
+          'Off by default. Turning this on sends a rewritten, scrubbed query to a third-party search API, the only outbound call this extension can make.',
+        ),
+      ),
+    ),
+    h(
+      'section',
+      { class: 'block' },
+      h('h2', {}, 'Local AI detection'),
+      h(
+        'p',
+        { class: 'sub' },
+        'A model that finds names, organizations and other free-text details regex cannot. It runs entirely on this machine. Enabling it downloads the model once.',
+      ),
+      h(
+        'div',
+        { class: 'card' },
+        toggle(
+          settings,
+          'nerEnabled',
+          'Local AI detection',
+          'Highlight names and organizations using the local model. Requires the download below.',
+        ),
+        toggle(
+          settings,
+          'autoRedactNames',
+          'Replace names without confirming',
+          'Off by default: names found by the model are highlighted, and you click one to mark it for replacement. Turning this on replaces any name the model is confident about without asking. Fewer clicks, but the model will occasionally be wrong.',
+        ),
+      ),
+      h('div', { class: 'card', style: 'margin-top:16px' }, ner),
+    ),
+  );
 }
 
-void main();
+// ---------------------------------------------------------------------------
+// routing and boot
+// ---------------------------------------------------------------------------
+
+let renderId = 0;
+
+async function renderView(): Promise<void> {
+  const id = ++renderId;
+  const view = currentView();
+  const content = view === 'settings' ? await settingsView() : await overview();
+  // A newer navigation started while this one was loading: drop this result.
+  if (id !== renderId) return;
+
+  document.title = `${view === 'settings' ? 'Settings' : 'Overview'} · Prompt Firewall`;
+  const parts: Node[] = [topbar(view), h('main', { class: 'view' }, content)];
+  if (view === 'overview') {
+    parts.push(
+      h('p', { class: 'footnote' }, 'Only counts are kept. Prompt text and detected values are never stored.'),
+    );
+  }
+  app.replaceChildren(...parts);
+}
+
+window.addEventListener('hashchange', () => void renderView());
+
+// New activity while the dashboard is open. Settings is left alone, so a
+// switch the user just flipped is not redrawn underneath them.
+let refreshTimer: number | undefined;
+chrome.storage.onChanged.addListener((_changes, area) => {
+  if (area !== 'local' || currentView() !== 'overview') return;
+  window.clearTimeout(refreshTimer);
+  refreshTimer = window.setTimeout(() => void renderView(), 250);
+});
+
+void renderView();

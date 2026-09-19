@@ -26,7 +26,12 @@ npm run build        # typecheck then production build into dist/
 
 The UI harness renders every overlay panel with no extension and no chat site involved —
 useful for building UI in parallel. With the dev server running, open
-<http://localhost:5173/dev/harness.html>.
+<http://localhost:5173/dev/harness.html>. The toolbar popup and the dashboard have a preview too,
+against a fake `chrome` API: <http://localhost:5173/dev/preview.html?page=popup> (also
+`&site=other`, `&enabled=0`, `&blocked=1`, `&empty=1`, or `?page=dashboard` / `?page=settings`).
+<http://localhost:5173/dev/reveal-lab.html> is a fake thread for the reveal overlay: a message
+duplicated into a screen-reader-only box and a reply that streams in, which is the layout that
+put revealed values in the wrong place.
 
 ## Layout
 
@@ -36,7 +41,8 @@ useful for building UI in parallel. With the dev server running, open
 | `src/worker/` | Detectors and the redaction engine — pure functions | No |
 | `src/content/` | Composer adapter, submit gate, overlay UI | Yes |
 | `src/background/` | Vault, usage log, settings, badge | Yes |
-| `src/options/` | Dashboard, receipt, tokenizer explainer | Yes |
+| `src/popup/` | Toolbar popup: on/off, counts, categories, mode | Yes |
+| `src/options/` | Dashboard: Overview and Settings tabs | Yes |
 | `dev/harness.html` | Standalone UI workbench | No |
 | `test/fixtures/` | The labelled eval set | No |
 
@@ -65,17 +71,26 @@ Stated here so nobody has to discover them at 3am, and so we can answer honestly
   which clears the placeholder mapping. Redaction is unaffected; only hover-reveal stops
   working. This is the intended trade — a crash should lose a mapping, not leak one.
 - **Rehydration is hover-only.** We do not rewrite the streamed response. Mutating another
-  app's React-managed DOM mid-stream is the most likely way to break the page live.
-- **The tokenizer is an approximation**, not a real BPE vocabulary, and says so on screen.
+  app's React-managed DOM mid-stream is the most likely way to break the page live. Revealing
+  a value paints it in our own layer and widens the placeholder span to make room for it —
+  the width is the only thing that reaches the page, never the value.
+- **The tokenizer is an approximation**, not a real BPE vocabulary, and says so where it is
+  shown. It is not on the dashboard at the moment: the final design keeps Overview and
+  Settings only. `src/options/tokenizer.ts` is kept so it can come back as its own tab.
 - **The router is rules-only.** The embedding classifier is cut. Uncertainty escalates to
   `frontier`, so a wrong guess costs nothing.
 - **The scanner runs in-process, not in a Web Worker.** The worker existed to keep NER and
   the embedder off the UI thread; both are cut, and regex over a few KB measures well under
   a millisecond. The module boundary is intact if that changes.
-- **Energy figures are ranges**, labelled estimates, with the assumptions on the page.
+- **The energy range, receipt, category breakdown and any token or energy figures are not on the dashboard** now. The
+  calculation and the copy live in git history (`src/options/main.ts` before the redesign).
 - **NER is not implemented**, so the `low` tier currently finds nothing.
 - **Strict mode behaves as autopilot.** The confirmation step is not wired yet.
 - **Search lane is not implemented** and its flag ships `false`.
+- **Fonts are bundled, never fetched.** The popup and dashboard use `@fontsource` packages so
+  opening them makes no request to a third party. Do not swap in a Google Fonts `<link>`.
+- **Design tokens live in `src/shared/theme.css`** (violet and green). The badge colour in
+  `src/background/badge.ts` is duplicated there because a service worker cannot read CSS.
 
 ## The one thing that must not break
 

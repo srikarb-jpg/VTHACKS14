@@ -16,7 +16,8 @@ function render(tabId: number): void {
   const c = byTab.get(tabId);
   const total = (c?.redactions ?? 0) + (c?.reroutes ?? 0);
   void chrome.action.setBadgeText({ tabId, text: total ? String(total) : '' });
-  void chrome.action.setBadgeBackgroundColor({ tabId, color: '#3b6fd4' });
+  // Brand violet. Keep in sync with --pf-ink in src/shared/theme.css.
+  void chrome.action.setBadgeBackgroundColor({ tabId, color: '#5b3fd1' });
 }
 
 export function increment(tabId: number, redactions: number, reroutes: number): void {
