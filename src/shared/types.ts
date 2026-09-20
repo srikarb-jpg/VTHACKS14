@@ -10,6 +10,8 @@
  *   medium -> auto-redact, listed in the toast.
  *   low    -> highlight only. Never alters text on its own.
  */
+import type { Policy } from './policy';
+
 export type Severity = 'block' | 'high' | 'medium' | 'low';
 
 export const SEVERITY_ORDER: readonly Severity[] = ['block', 'high', 'medium', 'low'];
@@ -41,7 +43,9 @@ export type FindingKind =
   // low
   | 'person'
   | 'organization'
-  | 'location';
+  | 'location'
+  // from the user's own policy
+  | 'custom';
 
 /** One detection in a span of text. `start`/`end` index into the scanned string. */
 export interface Finding {
@@ -55,6 +59,8 @@ export interface Finding {
   value: string;
   /** Which detector produced this, for debugging and the eval harness. */
   detector: string;
+  /** Placeholder stem for policy rules, so [CONTRACT_NUMBER_1] rather than [CUSTOM_1]. */
+  stem?: string;
   /**
    * Model confidence in [0,1], for detectors that produce one. Absent for
    * regex, which is deterministic -- a pattern either matched or it did not.
@@ -105,8 +111,6 @@ export interface Settings {
   mode: Mode;
   /** Master switch; when false the content script observes but never acts. */
   enabled: boolean;
-  searchLaneEnabled: boolean;
-  showRoutingChips: boolean;
   /**
    * Local AI detection. Off by default because enabling it downloads ~183 MB
    * of model weights, which should be a deliberate choice rather than a
@@ -131,6 +135,8 @@ export interface Settings {
    * panels bright white over a dark conversation.
    */
   theme: Theme;
+  /** The organization's own sensitive formats, or null. Patterns only, never values. */
+  policy: Policy | null;
 }
 
 /**

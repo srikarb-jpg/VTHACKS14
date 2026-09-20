@@ -84,7 +84,7 @@ function nerLabel(): string {
 
 /** What the row tells the user about this finding, in plain words. */
 function statusFor(f: LiveFinding): { text: string; ok: boolean } {
-  if (f.confirmed) return { text: '✓ Replacing', ok: true };
+  if (f.confirmed) return { text: '✓ Replaces on send', ok: true };
   if (!f.settled) return { text: 'Watching…', ok: false };
   if (f.severity === 'block') return { text: 'Send will be blocked', ok: false };
   if (f.severity === 'low') return { text: 'Click to replace', ok: false };

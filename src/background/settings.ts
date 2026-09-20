@@ -1,17 +1,15 @@
 import type { Settings } from '../shared/types';
-import { SEARCH_LANE_ENABLED } from '../shared/config';
 
 const KEY = 'settings_v1';
 
 export const DEFAULTS: Settings = {
   mode: 'autopilot',
   enabled: true,
-  searchLaneEnabled: SEARCH_LANE_ENABLED,
-  showRoutingChips: true,
   nerEnabled: false,
   autoRedactNames: false,
   nerAutoRedactMinScore: 0.7,
   theme: 'light',
+  policy: null,
 };
 
 export async function get(): Promise<Settings> {

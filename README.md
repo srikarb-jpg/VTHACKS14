@@ -88,7 +88,7 @@ Stated here so nobody has to discover them at 3am, and so we can answer honestly
   calculation and the copy live in git history (`src/options/main.ts` before the redesign).
 - **NER is not implemented**, so the `low` tier currently finds nothing.
 - **Strict mode behaves as autopilot.** The confirmation step is not wired yet.
-- **Search lane is not implemented** and its flag ships `false`.
+- **There is no search lane and no routing chip.** Both were removed; the router only labels each prompt's lane in the usage log.
 - **Fonts are bundled, never fetched.** The popup and dashboard use `@fontsource` packages so
   opening them makes no request to a third party. Do not swap in a Google Fonts `<link>`.
 - **Design tokens live in `src/shared/theme.css`** (violet and green). The badge colour in

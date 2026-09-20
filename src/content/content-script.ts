@@ -16,19 +16,17 @@
  * worker can be dropped back in without touching this file.
  */
 import { scan as fullScan } from '../worker/detectors';
-import {
-  IncrementalScanner,
-  markSettled,
-  maxSeverity,
-  type LiveFinding,
-} from '../worker/incremental';
+import { IncrementalScanner, maxSeverity, type LiveFinding } from '../worker/incremental';
+import { buildLiveView } from './live-view';
+import { compileRules, type CompiledRule } from '../shared/policy';
+import { detectCustom } from '../worker/detectors/custom';
 import { redact, revertOne } from '../worker/redact';
 import { sendToBackground } from '../shared/messages';
 import { SUBMIT_LATENCY_BUDGET_MS, TYPING_DEBOUNCE_MS } from '../shared/config';
 import type { Finding, Placeholder, Settings } from '../shared/types';
 import { ClaudeAdapter } from './adapters/claude';
 import { SubmitGate, type GateVerdict } from './gate';
-import { route, worthSuggesting } from './router';
+import { route } from './router';
 import {
   startRehydration,
   setRevealAll,
@@ -46,7 +44,8 @@ import {
 import { showToast, dismissToast } from './ui/toast';
 import { showDiff, closeDiff } from './ui/diff';
 import { showBlockPanel } from './ui/cui-block';
-import { showChip, dismissChip } from './ui/chip';
+// ui/chip.ts and ui/ready.ts are both gone -- the routing chip was cut with
+// the search lane, and the armed pill was removed from the page.
 import { setOverlayAnchor, layoutDocks, setOverlayTheme } from './ui/shell';
 import { renderLive, hideLive, setNerState, setNerTiming, setLiveHandler } from './ui/live';
 import {
@@ -56,12 +55,15 @@ import {
 } from './ui/highlights';
 import type { TextMap } from './textmap';
 import type { NerSpan } from '../shared/ner';
-import { applyConfirmations, isConfirmed, toggleConfirmed } from './confirmed';
+import { applyConfirmations, toggleConfirmed } from './confirmed';
 import { splitStable, hash } from '../worker/chunks';
 import { nerSpansToFindings } from '../worker/ner-map';
 import { buildUsageEvent } from '../worker/usage-event';
 import { leakedValues } from '../worker/audit';
 import { resolveOverlaps } from '../worker/detectors';
+import { attachFileScanner, scrubAttachment } from './attachments';
+import { showAttachmentStatus } from './ui/attachment-status';
+import { ATTACHMENT_ENTITIES, detectAttachmentNames } from './attachment-ner';
 
 const adapter = new ClaudeAdapter();
 
@@ -71,17 +73,29 @@ const adapter = new ClaudeAdapter();
  * cache is already warm from typing, so the authoritative scan only has to
  * re-run detection on whatever chunk is still dirty.
  */
-const scanner = new IncrementalScanner((text) => fullScan(text).findings);
+/** The user's policy rules, compiled. Re-read whenever settings change. */
+let customRules: CompiledRule[] = [];
+
+const scanner = new IncrementalScanner((text) => [
+  ...fullScan(text).findings,
+  ...detectCustom(text, customRules),
+]);
 let settings: Settings = {
   mode: 'autopilot',
   enabled: true,
-  searchLaneEnabled: false,
-  showRoutingChips: true,
   nerEnabled: false,
   autoRedactNames: true,
   nerAutoRedactMinScore: 0.7,
   theme: 'light',
+  policy: null,
 };
+
+/** Recompile the policy and drop cached scans, which were made under the old rules. */
+function applyPolicy(): void {
+  customRules = compileRules(settings.policy);
+  scanner.clear();
+  console.info(`[prompt-firewall] policy: ${customRules.length} custom rule(s)`);
+}
 
 
 /**
@@ -364,7 +378,7 @@ async function logUsage(
 }
 
 // ---------------------------------------------------------------------------
-// Advisory pass while typing. Never alters text; only surfaces the chip.
+// Advisory pass while typing. Never alters text; only draws highlights and the live panel.
 // ---------------------------------------------------------------------------
 
 let typingTimer: number | undefined;
@@ -380,6 +394,10 @@ let idleHandle: number | undefined;
 /** Kept so scroll and resize can redraw without rescanning. */
 let lastMap: TextMap | null = null;
 let lastLive: LiveFinding[] = [];
+/** The regex half of the last scan, so a late model result can be merged in. */
+let lastRegex: Finding[] = [];
+/** True from a paste until the user types: pasted text needs no settling. */
+let settleAll = false;
 
 function advisoryScan(): void {
   lastScanAt = performance.now();
@@ -388,18 +406,26 @@ function advisoryScan(): void {
   if (text.trim().length < 3) {
     hideLive();
     clearHighlights();
-    dismissChip();
     lastMap = null;
     lastLive = [];
+    lastRegex = [];
+    settleAll = false;
     return;
   }
 
   const { findings, stats } = scanner.scan(text);
-  const caret = adapter.getCaretOffset();
-  const live = markSettled(findings, text, caret).map((f) => ({
-    ...f,
-    confirmed: f.severity === 'low' && isConfirmed(f),
-  }));
+  lastRegex = findings;
+  // Merge in whatever the model already knows about THIS text. Repainting
+  // from regex alone here is what made names vanish on every scan that ran
+  // after the model had finished.
+  const live = buildLiveView({
+    regex: findings,
+    ner: nerFindings,
+    nerFor,
+    text,
+    caret: adapter.getCaretOffset(),
+    settleAll,
+  });
   lastMap = map;
   lastLive = live;
   renderLive(live, stats, text.length);
@@ -415,28 +441,6 @@ function advisoryScan(): void {
     // need the model re-run on text it has already seen.
     void runNer(text);
   }
-
-  if (!settings.showRoutingChips) {
-    dismissChip();
-    return;
-  }
-  const decision = route(text);
-  if (!worthSuggesting(decision)) {
-    dismissChip();
-    return;
-  }
-  showChip(
-    {
-      decision,
-      onAccept: () => {
-        // The search lane ships disabled; accepting is a no-op placeholder
-        // until that lane exists. Logged so overrides become training data.
-        console.info('[prompt-firewall] lane accepted', decision.lane);
-      },
-      onDismiss: () => undefined,
-    },
-    adapter.getAnchor(),
-  );
 }
 
 let lastScanAt = 0;
@@ -579,11 +583,14 @@ async function runNer(text: string): Promise<void> {
 function repaintWithNer(): void {
   const current = adapter.readText();
   if (current !== nerFor || !lastMap) return;
-  const merged = resolveOverlaps([...lastLive, ...nerFindings]);
-  const live = markSettled(merged, current, adapter.getCaretOffset()).map((f) => ({
-    ...f,
-    confirmed: f.severity === 'low' && isConfirmed(f),
-  }));
+  const live = buildLiveView({
+    regex: lastRegex,
+    ner: nerFindings,
+    nerFor,
+    text: current,
+    caret: adapter.getCaretOffset(),
+    settleAll,
+  });
   lastLive = live;
   renderLive(live, scanner.stats, current.length);
   renderHighlights(lastMap, live);
@@ -603,6 +610,9 @@ function scheduleAdvisory(delay: number): void {
 const BOUNDARY_KEYS = new Set([' ', ',', '.', ';', ':', ')', ']', '}', 'Enter', 'Tab']);
 
 function onTyping(e: Event): void {
+  // Real typing (or deleting) ends the pasted-text grace; the paste's own
+  // input event does not.
+  if (e instanceof InputEvent && !e.inputType.startsWith('insertFromPaste')) settleAll = false;
   const fast = e instanceof KeyboardEvent && BOUNDARY_KEYS.has(e.key);
   scheduleAdvisory(fast ? 60 : TYPING_DEBOUNCE_MS);
 }
@@ -639,6 +649,7 @@ function onPaste(e: ClipboardEvent): void {
       // Bypass the debounce and the staleness guard: pasted text is
       // complete by definition, so there is nothing to wait for.
       lastScanAt = 0;
+      settleAll = true;
       advisoryScan();
       return;
     }
@@ -660,10 +671,33 @@ async function boot(): Promise<void> {
   // it, which is not an element any selector of ours should be guessing at.
   setOverlayAnchor(() => adapter.getComposer());
 
+  const detachFiles = attachFileScanner({
+    enabled: () => settings.enabled && settings.mode !== 'watch',
+    status: showAttachmentStatus,
+    remember: (placeholders) => {
+      rememberPlaceholders(placeholders);
+      void sendToBackground({ type: 'vault:put', placeholders });
+      void sendToBackground({ type: 'badge:increment', redactions: placeholders.length, reroutes: 0 });
+    },
+    scrub: (file) => scrubAttachment(file, async (text) => {
+      if (!settings.nerEnabled) return [];
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        return await Promise.race([
+          detectAttachmentNames(text, (texts) => sendToBackground({ type: 'ner:detect', texts, entities: ATTACHMENT_ENTITIES, threshold: 0.45 })),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error('Name scan timed out. Upload blocked; try again.')), 30_000);
+          }),
+        ]);
+      } finally { clearTimeout(timer); }
+    }),
+  });
+
   try {
     const res = await sendToBackground({ type: 'settings:get' });
     settings = res.settings;
     setOverlayTheme(settings.theme);
+    applyPolicy();
   } catch (err) {
     console.warn('[prompt-firewall] settings unavailable, using defaults', err);
   }
@@ -689,6 +723,7 @@ async function boot(): Promise<void> {
     const next = changes.settings_v1.newValue as Partial<Settings> | undefined;
     if (!next) return;
     settings = { ...settings, ...next };
+    applyPolicy();
     console.info('[prompt-firewall] settings updated', settings);
     // Flipping the theme in the popup repaints the panels in this tab too.
     setOverlayTheme(settings.theme);
@@ -711,15 +746,6 @@ async function boot(): Promise<void> {
   };
   setHighlightHandler(onPick);
   setLiveHandler(onPick);
-  // Enter dismisses the routing chip and sends normally -- the chip never
-  // intercepts the keystroke.
-  document.addEventListener(
-    'keydown',
-    (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) dismissChip();
-    },
-    { capture: true },
-  );
 
   setRevealHandler((on) => setRevealAll(on));
   // The toggle is only useful once something on the page has actually been
@@ -741,9 +767,9 @@ async function boot(): Promise<void> {
   });
 
   window.addEventListener('pagehide', () => {
+    detachFiles();
     gate.detach();
     dismissToast();
-    dismissChip();
     hideLive();
     clearHighlights();
     hideRevealToggle();

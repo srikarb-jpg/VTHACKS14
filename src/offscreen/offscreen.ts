@@ -104,6 +104,51 @@ async function probe(): Promise<Probe> {
   return result;
 }
 
+/**
+ * A URL for the model that does not depend on the network.
+ *
+ * onnxruntime-web downloads the model itself when handed an https URL, and
+ * that leans on Chrome's HTTP cache -- which is not a place to keep a 175 MB
+ * file. Hugging Face serves it through a redirect to a signed CDN URL, and
+ * entries that large are commonly not retained. The symptom was a full
+ * download after every offscreen teardown. So we keep the bytes in Cache
+ * Storage ourselves, which persists across extension reloads (same origin),
+ * and hand ORT a blob: URL backed by that stored copy.
+ */
+const MODEL_CACHE = 'pf-model-v1';
+const MIN_MODEL_BYTES = 50_000_000;
+
+async function localModelUrl(remote: string): Promise<{ url: string; revoke: () => void; source: string }> {
+  const none = { revoke: () => undefined };
+  try {
+    const cache = await caches.open(MODEL_CACHE);
+    let res = await cache.match(remote);
+    let source = 'cache';
+    if (!res) {
+      source = 'network';
+      const net = await fetch(remote);
+      if (!net.ok) throw new Error(`model download failed: HTTP ${net.status}`);
+      // put() only resolves once the whole body is stored, so an interrupted
+      // download leaves nothing behind rather than a truncated model.
+      await cache.put(remote, net);
+      res = await cache.match(remote);
+    }
+    if (!res) throw new Error('model cache write did not persist');
+    const blob = await res.blob();
+    if (blob.size < MIN_MODEL_BYTES) {
+      await cache.delete(remote);
+      throw new Error(`cached model is ${blob.size} bytes; discarded`);
+    }
+    const url = URL.createObjectURL(blob);
+    return { url, revoke: () => URL.revokeObjectURL(url), source };
+  } catch (err) {
+    // Storage unavailable or full: fall back to letting ORT download it, so
+    // the feature still works, only slowly.
+    console.warn('[prompt-firewall:offscreen] model cache unavailable, using network', err);
+    return { url: remote, source: 'network (uncached)', ...none };
+  }
+}
+
 async function ensureModel(): Promise<void> {
   if (model) return;
   if (loading) return loading;
@@ -121,10 +166,19 @@ async function ensureModel(): Promise<void> {
     const variant = PREFER_WEBGPU && caps.webgpu ? VARIANTS.webgpu : VARIANTS.wasm;
     console.info(`[prompt-firewall:offscreen] loading ${variant.file} on ${variant.provider}`);
 
+    const tFetch = performance.now();
+    const local = await localModelUrl(
+      `https://huggingface.co/${MODEL_REPO}/resolve/main/${variant.file}`,
+    );
+    console.info(
+      `[prompt-firewall:offscreen] model bytes from ${local.source} in ` +
+        `${(performance.now() - tFetch).toFixed(0)}ms`,
+    );
+
     const instance = new Gliner({
       tokenizerPath: MODEL_REPO,
       onnxSettings: {
-        modelPath: `https://huggingface.co/${MODEL_REPO}/resolve/main/${variant.file}`,
+        modelPath: local.url,
         executionProvider: variant.provider,
         // ORT's .wasm binaries ship inside the extension rather than being
         // fetched from a CDN, so no remote code is ever loaded.
@@ -140,13 +194,17 @@ async function ensureModel(): Promise<void> {
     });
 
     const tInit = performance.now();
-    await instance.initialize();
+    try {
+      await instance.initialize();
+    } finally {
+      local.revoke();
+    }
     const initMs = performance.now() - tInit;
     model = instance;
     activeProvider = variant.provider;
     console.info(
       `[prompt-firewall:offscreen] load: import ${importMs.toFixed(0)}ms + ` +
-        `initialize ${initMs.toFixed(0)}ms (fetch + ONNX session creation)`,
+        `initialize ${initMs.toFixed(0)}ms (tokenizer + ONNX session creation)`,
     );
     lastError = null;
   })();

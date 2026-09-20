@@ -19,12 +19,11 @@ export function installFakeChrome(opts: FakeOptions): void {
   let settings: Settings = {
     mode: opts.mode ?? 'autopilot',
     enabled: opts.enabled ?? true,
-    searchLaneEnabled: false,
-    showRoutingChips: true,
     nerEnabled: false,
     autoRedactNames: false,
     nerAutoRedactMinScore: 0.7,
     theme: opts.theme ?? 'light',
+    policy: null,
   };
 
   const stub = {

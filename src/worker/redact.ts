@@ -29,7 +29,10 @@ const TOKEN_STEM: Record<FindingKind, string> = {
   person: 'PERSON',
   organization: 'ORG',
   location: 'LOCATION',
+  custom: 'CUSTOM',
 };
+
+const stemOf = (f: Finding): string => f.stem ?? TOKEN_STEM[f.kind];
 
 /**
  * Applies redactions for every finding at or above `threshold`. Findings below
@@ -46,15 +49,16 @@ export function redact(
 
   // (kind, value) -> token, so a repeated value reuses its token.
   const assigned = new Map<string, Placeholder>();
-  const counters = new Map<FindingKind, number>();
+  const counters = new Map<string, number>();
 
   function tokenFor(f: Finding): string {
-    const key = `${f.kind}\u0000${f.value}`;
+    const key = `${stemOf(f)}\u0000${f.value}`;
     const existing = assigned.get(key);
     if (existing) return existing.token;
-    const n = (counters.get(f.kind) ?? 0) + 1;
-    counters.set(f.kind, n);
-    const token = `${TOKEN_STEM[f.kind]}_${n}`;
+    const stem = stemOf(f);
+    const n = (counters.get(stem) ?? 0) + 1;
+    counters.set(stem, n);
+    const token = `${stem}_${n}`;
     assigned.set(key, { token, kind: f.kind, value: f.value });
     return token;
   }
