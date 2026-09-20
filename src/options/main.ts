@@ -19,6 +19,8 @@ import type { Probe } from '../shared/ner';
 import { ALL_TIME_MS, formatCount, lastDays, rangeStart, shortDate, summarize } from '../shared/stats';
 import type { Summary } from '../shared/stats';
 import type { Settings } from '../shared/types';
+import { receiptSection } from './receipt-export';
+import { policySection } from './policy-section';
 
 const root = document.getElementById('app');
 if (!root) throw new Error('missing #app');
@@ -103,6 +105,7 @@ async function overview(): Promise<HTMLElement> {
       h('p', { class: 'sub' }, 'Personal details replaced before a prompt was sent, and how many prompts were checked.'),
       h('div', { class: 'tickets' }, ...periods.map(ticket)),
     ),
+    receiptSection(events),
   );
 }
 
@@ -240,13 +243,6 @@ async function settingsView(): Promise<HTMLElement> {
         'div',
         { class: 'card' },
         toggle(settings, 'enabled', 'Enabled', 'Master switch.'),
-        toggle(settings, 'showRoutingChips', 'Routing hints', 'Suggest a cheaper lane. Never blocks Enter.'),
-        toggle(
-          settings,
-          'searchLaneEnabled',
-          'Search lane',
-          'Off by default. Turning this on sends a rewritten, scrubbed query to a third-party search API, the only outbound call this extension can make.',
-        ),
       ),
     ),
     h(
@@ -276,6 +272,7 @@ async function settingsView(): Promise<HTMLElement> {
       ),
       h('div', { class: 'card', style: 'margin-top:16px' }, ner),
     ),
+    policySection(settings),
   );
 }
 

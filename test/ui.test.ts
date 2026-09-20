@@ -32,11 +32,10 @@ function installChrome(opts: { url?: string; events: UsageEvent[]; enabled?: boo
     settings: {
       mode: 'autopilot',
       enabled: opts.enabled ?? true,
-      searchLaneEnabled: false,
-      showRoutingChips: true,
       nerEnabled: false,
       autoRedactNames: false,
       nerAutoRedactMinScore: 0.7,
+      policy: null,
     },
   };
   const chromeStub = {
@@ -317,15 +316,15 @@ describe('dashboard', () => {
   it('settings switches write through to the setting', async () => {
     const fake = installChrome({ events: [] });
     await open('#settings');
-    await vi.waitFor(() => expect(document.querySelector('[data-setting="showRoutingChips"]')).not.toBeNull());
-    const box = document.querySelector<HTMLInputElement>('[data-setting="showRoutingChips"]');
+    await vi.waitFor(() => expect(document.querySelector('[data-setting="enabled"]')).not.toBeNull());
+    const box = document.querySelector<HTMLInputElement>('[data-setting="enabled"]');
     expect(box?.checked).toBe(true);
     if (box) {
       box.checked = false;
       box.dispatchEvent(new Event('change'));
     }
     await vi.waitFor(() =>
-      expect(fake.sent.some((m) => m.type === 'settings:set' && m.patch?.showRoutingChips === false)).toBe(true),
+      expect(fake.sent.some((m) => m.type === 'settings:set' && m.patch?.enabled === false)).toBe(true),
     );
   });
 });

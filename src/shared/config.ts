@@ -3,14 +3,6 @@
  * or that we might want to switch off live on stage, lives here.
  */
 
-/**
- * The search lane makes an outbound call to a third-party search API. That is
- * defensible (the query is rewritten and scrubbed first) but it weakens the
- * "nothing leaves the device" claim, which is our strongest answer in Q&A.
- * Ships off. Toggle deliberately if we demo it at all.
- */
-export const SEARCH_LANE_ENABLED = false;
-
 /** Debounce for advisory scans while typing, in milliseconds. */
 export const TYPING_DEBOUNCE_MS = 300;
 
@@ -20,9 +12,6 @@ export const TYPING_DEBOUNCE_MS = 300;
  * and reported, not assumed.
  */
 export const SUBMIT_LATENCY_BUDGET_MS = 100;
-
-/** Below this the router escalates a lane rather than downgrading it. */
-export const ROUTER_CONFIDENCE_THRESHOLD = 0.7;
 
 /** Sites the content script is allowed to touch. Keep in sync with manifest. */
 export const SUPPORTED_HOSTS = ['claude.ai'] as const;

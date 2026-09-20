@@ -9,11 +9,10 @@
  *   - Escalate on uncertainty, never downgrade. Anything we are not sure
  *     about goes to 'frontier', which is the lane the user already chose by
  *     being on this site. The cost of a wrong guess is therefore zero.
- *   - The router never blocks Enter. It returns a decision; the caller
- *     renders a dismissible chip and sends regardless.
+ *   - The router never blocks Enter. It only labels the prompt's lane for the
+ *     usage log; nothing is rerouted or suggested to the user.
  */
 import type { RouteDecision } from '../shared/types';
-import { ROUTER_CONFIDENCE_THRESHOLD } from '../shared/config';
 
 const LOOKUP_OPENERS =
   /^\s*(?:what(?:'s| is| are| was| were)|who(?:'s| is| was)|when (?:is|was|did|does)|where (?:is|are|was)|how (?:many|much|old|tall|far|long))\b/i;
@@ -76,9 +75,4 @@ export function route(text: string): RouteDecision {
   }
 
   return { lane: 'frontier', confidence: 1, reason: 'Passed through', source: 'rules' };
-}
-
-/** Whether a decision is confident enough to surface as a chip. */
-export function worthSuggesting(d: RouteDecision): boolean {
-  return d.lane !== 'frontier' && d.confidence >= ROUTER_CONFIDENCE_THRESHOLD;
 }
