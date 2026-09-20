@@ -1,0 +1,43 @@
+Among the breached organizations studied, more than half (53%) reported compromised customer PII. In the breaches involving shadow AI, that figure jumped to nearly two-thirds (65%). - https://www.ibm.com/think/insights/data-matters/cost-of-a-data-breach?utm_source=chatgpt.com 
+ 
+The Samsung Disaster (March 2023): Within 20 days of allowing engineers to use ChatGPT, Samsung suffered three separate massive data leaks. Engineers pasted proprietary semiconductor source code, defect-detection algorithms, and transcribed internal meeting notes directly into the consumer tier of ChatGPT. Because OpenAI retains inputs for training by default, that IP was permanently compromised. Samsung was forced to ban the tool globally. 
+ 
+Healthcare Systems & HIPAA (2024-2026): Multiple hospital networks have discovered administrators and healthcare workers uploading patient data into public AI models to generate summaries or reduce administrative workloads. Many believed that simply stripping a name was enough to "de-identify" the data, inadvertently committing severe HIPAA violations. 
+ 
+JPMorgan Chase (2023): Employees used ChatGPT to summarize confidential client communications and trading data, forcing the bank to severely restrict the use of generative AI tools internally 
+ 
+Law Firms (2024): Multiple law firms discovered associates using ChatGPT to draft legal briefs and client communications, directly exposing attorney-client privileged information to OpenAI's servers. 
+ 
+https://centrexit.com/blog/employee-chatgpt-data-leakage-proprietary-code/#:~:text=Law%20Firms%20(2024)%3A%20Multiple%20law%20firms%20discovered,briefs%E2%80%94exposing%20attorney%2Dclient%20privileged%20information%20to%20OpenAI's%20systems.  
+ 
+ 
+DeepSeek Database Exposure (Jan 2025): Cybersecurity firm Wiz discovered that AI vendor DeepSeek left a database publicly exposed and unauthenticated, leaking over 1 million log lines that included plaintext user chat histories, API keys, and backend metadata.  
+ 
+https://shadowlock.io/resources/shadow-ai-incidents#:~:text=AI%20vendors%20breached%20or%20misconfigured%20*%20DeepSeek,of%20disclosure%3B%20no%20confirmed%20malicious%20third%2Dparty%20access.  
+ 
+ 
+  The "De-identification" Trap: 2025 research from USC explicitly confirmed the anonymization behavior you noted. They found that many doctors using ChatGPT were unknowingly committing HIPAA violations by pasting what they believed was "anonymized" patient data. Under the HIPAA Safe Harbor rule, 18 specific identifiers must be removed for data to be legally de-identified. Researchers found clinicians were routinely relying on quick redactions (like just removing names) and failing to strip all 18 identifiers before prompting the AI.  
+  The Penalty Reality: When an employee pastes an improperly redacted patient chart into a consumer AI tool, it triggers the same legal consequences as a standard data breach. This requires the hospital to notify affected patients within 60 days, report the incident to the HHS Office for Civil Rights, and face fines ranging up to $1.5 million per violation category.  
+https://passiveincomemd.com/blog/tech/what-doctors-should-never-do-in-chatgpt/#:~:text=HIPAA%20outlines%20two%20methods%20for%20de%2Didentification%3A%20expert,de%2Didentification%2C%20or%20avoid%20entering%20PHI%20altogether.%205.  
+ 
+ 
+1. The DeepSeek 1 Million Prompt Exposure (January 2025) 
+This is the ultimate argument for why companies cannot trust AI vendors to store their employees' prompts safely. 
+The Scale: Over 1,000,000 sensitive log entries were exposed. 
+The Story: Chinese AI startup DeepSeek inadvertently left a backend database completely unsecured and publicly accessible. Cybersecurity firm Wiz Research discovered that this database contained over a million plaintext user chat histories, API keys, and internal backend data. Because employees and users across the world were treating the chatbot like a private workspace, a million sensitive conversations and credentials were left exposed to the open internet.  
+The Pitch Angle: "Judges, you might trust your employees, but can you trust the AI vendor? In 2025, over a million plaintext AI chats and API keys were left exposed on the open web by an AI vendor. If those users had Deadbolt, their API keys would have been locally redacted before they ever reached that vulnerable database." 
+2. The Xsolis AI Healthcare Breach (June 2026) 
+This story shows the devastating blast radius when an AI tool ingests massive amounts of PII. 
+The Scale: 1,400,000 patients across 8 health systems.  
+The Story: Xsolis, a healthcare AI company that provides utilization management technology, suffered an attack that breached its IT environment. Because hospitals had been feeding massive amounts of patient data into the AI platform to coordinate care, the breach exposed the Protected Health Information (PHI) of 1.4 million individuals.  
+The Pitch Angle: "When you feed PII into an AI platform, you are creating a massive, centralized target. Just months ago, an AI healthcare tool was breached, exposing the medical data of 1.4 million people. Deadbolt ensures that the AI can still analyze the trends, but the raw patient identities never leave the hospital's network."  
+ 
+https://www.beckershospitalreview.com/healthcare-information-technology/cybersecurity/8-health-systems-affected-by-ai-company-data-breach/#:~:text=A%20data%20breach%20involving%20healthcare%20AI%20company,and%20acquired%20a%20%E2%80%9Climited%20number%E2%80%9D%20of%20files.  
+ 
+
+
+One in five data breaches now involves shadow AI: AI tools employees use that their company never approved. Those breaches expose customer personal data 65% of the time, and cost $670,000 more.
+
+
+ "Think of Deadbolt as spell-check for privacy. It works as you type, fixes what it's sure about, and lets you undo. It's local: detection runs on your  device, no server, no account. It's reversible: what it changes, you can undo. And  it's yours: every organization has its own sensitive formats, like contract numbers, and you can teach Deadbolt yours in plain English. Let's show it."
+![alt text](image.png)
