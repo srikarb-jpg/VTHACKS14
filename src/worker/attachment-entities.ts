@@ -1,5 +1,16 @@
 import type { Finding, FindingKind } from '../shared/types';
 
+const HEADING_WORD = 'profile|summary|objective|experience|work|professional|employment|internships?|technical|skills|education|academic|background|projects?|personal|research|leadership|activities|extracurricular|honors|awards|certifications?|certificates|publications|volunteer(?:ing)?|interests|languages|coursework|relevant|additional|references|history|involvement|achievements|qualifications|highlights|competencies|tools|technologies|and|of';
+/** "EXPERIENCE", "Technical Skills", "Projects & Research": document structure, not personal data. */
+export const SECTION_HEADING = new RegExp(String.raw`^(?:${HEADING_WORD})(?:[ \t]*[&/,]?[ \t]*(?:${HEADING_WORD})){0,3}[ \t]*:?$`, 'i');
+const DEGREE_LINE = /^(?:B\.?\s?S|B\.?\s?A|M\.?\s?S|M\.?\s?A|B\.?\s?Eng|M\.?\s?Eng|M\.?B\.?A|Ph\.?\s?D|BSc|MSc|A\.?\s?A|A\.?\s?S)\.?(?=[\s,]|$)/;
+
+/** Drop name, organization and place findings that are only a section heading. Applied to the
+ * model's output as well, which sometimes tags a capitalised heading as an organization. */
+export function withoutHeadings(findings: Finding[]): Finding[] {
+  return findings.filter((f) => !((f.kind === 'person' || f.kind === 'organization' || f.kind === 'location') && SECTION_HEADING.test(f.value.trim())));
+}
+
 /** Document-specific fallbacks. These do not change live composer policy.
  * Resume structure supplies evidence that a short header is a person's name
  * and that title lines in EDUCATION identify institutions.
@@ -24,12 +35,13 @@ export function detectAttachmentEntities(text: string): Finding[] {
     let education = false;
     for (const line of lines) {
       if (/^(?:EDUCATION|ACADEMIC BACKGROUND)\s*:?$/i.test(line.text)) { education = true; continue; }
-      if (education && /^[A-Z][A-Z &/\-]{2,}:?$/.test(line.text)) { education = false; continue; }
+      // Small-caps and title-case headings ("Experience", "Technical Skills") end the section too.
+      if (education && (/^[A-Z][A-Z &/\-]{2,}:?$/.test(line.text) || SECTION_HEADING.test(line.text))) { education = false; continue; }
       if (!education) continue;
       // Institution title lines, including names without a "School" suffix.
       // Exclude bullets and degree/course metadata.
       const title = line.text.split(/\t|,|\s[–—|]\s/)[0]!.trim();
-      if (title.length < 3 || title.length > 90 || !/^[\p{Lu}]/u.test(title) || /[\d:•▪]/.test(title) ||
+      if (title.length < 3 || title.length > 90 || !/^[\p{Lu}]/u.test(title) || /[\d:•▪]/.test(title) || DEGREE_LINE.test(title) || SECTION_HEADING.test(title) ||
           /\b(?:Major|Minor|Degree|Diploma|Bachelor|Master|Doctor|GPA|Honors|Course|Courses|Graduation|Placement|Placements|Languages)\b/i.test(title)) continue;
       if (/^[\p{L}'’.&-]+(?:[ \t]+[\p{L}'’.&-]+){1,9}$/u.test(title)) {
         seeds.push({ value: title, kind: 'organization', label: 'Education institution' });

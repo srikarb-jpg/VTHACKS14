@@ -1,7 +1,7 @@
 import { scan, resolveOverlaps } from '../worker/detectors';
 import { redact } from '../worker/redact';
 import type { Finding, Placeholder } from '../shared/types';
-import { detectAttachmentEntities } from '../worker/attachment-entities';
+import { detectAttachmentEntities, withoutHeadings } from '../worker/attachment-entities';
 import { UploadBlocked } from './upload-blocked';
 
 export interface ScrubResult {
@@ -39,7 +39,7 @@ export async function scrubAttachment(
       const out = await scrubPdf(bytes, async (text) => {
         const findings = scan(text).findings;
         if (findings.some((f) => f.severity === 'block')) throw new UploadBlocked('Classification markings detected. Upload blocked.');
-        const merged = resolveOverlaps([...findings, ...detectAttachmentEntities(text), ...await names(text)]);
+        const merged = resolveOverlaps([...findings, ...withoutHeadings([...detectAttachmentEntities(text), ...await names(text)])]);
         const result = redact(text, merged);
         return { placeholders: result.placeholders, findings: merged.filter((f) => f.severity === 'high' || f.severity === 'medium' || f.severity === 'block') };
       });
@@ -56,7 +56,7 @@ export async function scrubAttachment(
   if (/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(text)) throw new Error('Binary file contents are not supported.');
   const findings = scan(text).findings;
   if (findings.some((f) => f.severity === 'block')) throw new UploadBlocked('Classification markings detected. Upload blocked.');
-  const result = redact(text, resolveOverlaps([...findings, ...detectAttachmentEntities(text), ...await names(text)]));
+  const result = redact(text, resolveOverlaps([...findings, ...withoutHeadings([...detectAttachmentEntities(text), ...await names(text)])]));
   // File mappings must not collide with another attachment or composer tokens.
   const namespace = crypto.randomUUID().replaceAll('-', '').toUpperCase();
   const placeholders = result.placeholders.map((p) => ({ ...p, token: `FILE_${namespace}_${p.token}` }));

@@ -47,9 +47,13 @@ function ensure(): { body: HTMLElement; details: HTMLElement } {
   panel = el(
     'section',
     { class: 'pf-card pf-live', role: 'region', 'aria-label': 'Live scan' },
-    el('div', { class: 'pf-head' }, lockLogo(26), el('div', { class: 'pf-title' }, 'Checking as you type'), toggle),
-    body,
-    details,
+    el(
+      'div',
+      { class: 'pf-live-scroll' },
+      el('div', { class: 'pf-head' }, lockLogo(26), el('div', { class: 'pf-title' }, 'Checking as you type'), toggle),
+      body,
+      details,
+    ),
   );
 
   getDock('left').append(panel);

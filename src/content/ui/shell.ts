@@ -126,10 +126,23 @@ const BASE_CSS = `
   .pf-bar.prov.medium { background: transparent; box-shadow: inset 0 0 0 1.5px var(--pf-slate); }
 
   /* ---- live scan ---- */
+  /* The card clips to its rounded border; the inner box scrolls, so the
+     scrollbar never cuts across the corners or the border. */
   .pf-live {
-    width: 360px; max-width: 100%; max-height: 46vh; overflow: auto;
+    width: 360px; max-width: 100%; max-height: 46vh; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .pf-live-scroll {
+    min-height: 0; overflow-x: hidden; overflow-y: auto;
     padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;
   }
+  .pf-live-scroll::-webkit-scrollbar { width: 10px; }
+  .pf-live-scroll::-webkit-scrollbar-track { background: transparent; margin: 10px 0; }
+  .pf-live-scroll::-webkit-scrollbar-thumb {
+    background: var(--pf-line); border-radius: 10px;
+    border: 3px solid transparent; background-clip: padding-box;
+  }
+  .pf-live-scroll::-webkit-scrollbar-thumb:hover { background: var(--pf-slate); background-clip: padding-box; }
   .pf-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   /* The lock scales with the type so the header stays on one line in a
      narrow gutter; 2em is its 26px size at the full type scale. */

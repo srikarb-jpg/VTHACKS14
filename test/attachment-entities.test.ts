@@ -82,6 +82,33 @@ describe('attachment identity coverage', () => {
     await expect(detectAttachmentNames('Example', async () => ({ error: 'failed', spans: [] }))).rejects.toThrow('unavailable');
     await expect(detectAttachmentNames('Example', async () => ({ error: null, spans: [] }))).rejects.toThrow('unavailable');
   });
+  it('does not treat section headings, jobs or degrees as institutions', () => {
+    const body = (h: string[]) => `Jordan Rivera
+Springfield, IL 62704 | (555) 010-1234 | jordan@example.com
+
+${h[0]}
+State University
+B.S. Computer Science
+
+${h[1]}
+Software Engineer Intern
+Acme Motors, Detroit, MI
+
+${h[2]}
+Python, TypeScript
+`;
+    for (const headings of [['EDUCATION', 'WORK EXPERIENCE', 'TECHNICAL SKILLS'], ['Education', 'Work Experience', 'Technical Skills']]) {
+      const values = detectAttachmentEntities(body(headings)).map((f) => f.value);
+      expect(values).toContain('State University');
+      expect(values.filter((v) => /Experience|Skills|Intern|B\.S\.|Computer Science|Motors/.test(v))).toEqual([]);
+    }
+  });
+  it('drops model spans that are only a section heading', async () => {
+    const { withoutHeadings } = await import('../src/worker/attachment-entities');
+    const f = (value: string, kind: 'organization' | 'person' | 'location') => ({ kind, value, start: 0, end: value.length, severity: 'medium' as const, label: 'x', detector: 'ner' });
+    expect(withoutHeadings([f('EXPERIENCE', 'organization'), f('SKILLS', 'location'), f('Projects & Research', 'organization'), f('Acme Motors', 'organization'), f('Jordan Rivera', 'person')]).map((x) => x.value))
+      .toEqual(['Acme Motors', 'Jordan Rivera']);
+  });
   it('redacts City, ST without a ZIP but leaves words that only look like a state', () => {
     const text = [
       'Blacksburg, VA', 'Ford Motor Company, Dearborn, MI   May 2024 – Aug 2024', 'Intern, Ann Arbor, MI', 'Salt Lake City, UT | Remote',
