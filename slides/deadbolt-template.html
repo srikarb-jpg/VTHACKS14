@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hackathon slide template</title>
+<!-- Fonts: Bricolage Grotesque (display/body) + JetBrains Mono (labels) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ===========================================
+   THEME: "Violet Night" (matches the extension UI)
+   Change these variables to re-skin the whole deck.
+   =========================================== */
+:root {
+  --bg: #120e26;
+  --paper: #211c3b;
+  --wash: #2a2350;
+  --line: #3b3268;
+  --violet: #9b83ff;
+  --violet-deep: #5b3fd1;
+  --spark: #34d399;
+  --spark-ink: #062b1f;
+  --warn: #ffb547;
+  --text: #f0ecff;
+  --muted: #bdb0ee;
+  --font-display: 'Bricolage Grotesque', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --stage-bg: #000;
+  --slide-bg: var(--bg);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* --- viewport-base.css (mandatory fixed 16:9 stage) --- */
+/* ===========================================
+   FIXED 16:9 STAGE: MANDATORY BASE STYLES
+   Include this ENTIRE file in every presentation.
+   Slides are authored at 1920×1080 and scaled as a whole.
+   =========================================== */
+
+/* 1. Lock the browser viewport */
+html,
+body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: var(--stage-bg, #000);
+}
+
+/* 2. Full-window deck viewport */
+.deck-viewport {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background: var(--stage-bg, #000);
+}
+
+/* 3. Fixed 16:9 design canvas.
+   JavaScript sets transform: translate(...) scale(...). */
+.deck-stage {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    transform-origin: 0 0;
+    background: var(--slide-bg, #fff);
+}
+
+/* 4. Slides stack inside the fixed stage.
+   Content must be laid out at 1920×1080, not reflowed per device. */
+.slide {
+    position: absolute;
+    inset: 0;
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    display: block;
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    background: var(--slide-bg, #fff);
+}
+
+.slide.active,
+.slide.visible {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    z-index: 1;
+}
+
+/* 5. Keep media inside authored slide bounds */
+img,
+video,
+canvas,
+svg {
+    max-width: 100%;
+    max-height: 100%;
+}
+
+/* 6. Presentation chrome stays outside the slide design system */
+.deck-controls {
+    position: fixed;
+    left: 50%;
+    bottom: 22px;
+    transform: translateX(-50%);
+    z-index: 1000;
+}
+
+/* 7. Print one fixed-size slide per page */
+@media print {
+    html,
+    body {
+        width: 1920px;
+        height: auto;
+        overflow: visible;
+        background: #fff;
+    }
+
+    .deck-viewport {
+        position: static;
+        overflow: visible;
+        background: #fff;
+    }
+
+    .deck-stage {
+        position: static;
+        width: auto;
+        height: auto;
+        transform: none !important;
+        background: none;
+    }
+
+    .slide {
+        position: relative;
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        width: 1920px;
+        height: 1080px;
+        break-after: page;
+        page-break-after: always;
+    }
+
+    .slide:last-child {
+        break-after: auto;
+        page-break-after: auto;
+    }
+
+    .deck-controls {
+        display: none !important;
+    }
+}
+
+/* 8. Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.2s !important;
+    }
+}
+
+
+/* ===========================================
+   SLIDE ATMOSPHERE: glow + faint grid on every slide
+   =========================================== */
+.slide {
+  font-family: var(--font-display);
+  color: var(--text);
+  background:
+    radial-gradient(900px 700px at 85% 10%, rgba(91,63,209,.45), transparent 70%),
+    radial-gradient(600px 460px at 0% 100%, rgba(52,211,153,.12), transparent 70%),
+    var(--bg);
+}
+.slide::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(155,131,255,.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(155,131,255,.06) 1px, transparent 1px);
+  background-size: 80px 80px;
+  mask-image: linear-gradient(90deg, transparent 0%, #000 70%);
+}
+.pad { position: absolute; inset: 0; padding: 120px 140px 110px; }
+
+/* ===========================================
+   CHROME: running header (mono) on every slide
+   =========================================== */
+.mono { font-family: var(--font-mono); font-size: 24px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.chrome { position: absolute; left: 140px; right: 140px; top: 64px; display: flex; justify-content: space-between; z-index: 2; }
+.chrome b { color: var(--spark); font-weight: 500; }
+
+/* ===========================================
+   TYPE SCALE (authored at 1920x1080)
+   =========================================== */
+.eyebrow { font-family: var(--font-mono); font-size: 26px; letter-spacing: .14em; text-transform: uppercase; color: var(--spark); margin-bottom: 36px; }
+h1 { font-weight: 800; font-size: 250px; letter-spacing: -.045em; line-height: .95; }
+h1 i, h2 i { font-style: normal; color: var(--spark); }
+h2 { font-weight: 800; font-size: 138px; letter-spacing: -.035em; line-height: 1.0; max-width: 1500px; }
+h3 { font-weight: 800; font-size: 56px; letter-spacing: -.02em; line-height: 1.1; }
+p, li { font-size: 40px; line-height: 1.3; color: var(--muted); font-weight: 500; }
+p b, li b { color: var(--text); font-weight: 800; }
+.lead { font-size: 52px; line-height: 1.25; max-width: 1200px; margin-top: 40px; }
+
+/* ===========================================
+   COMPONENTS
+   =========================================== */
+.chips { display: flex; gap: 18px; flex-wrap: wrap; }
+.chip { font-family: var(--font-mono); font-size: 26px; padding: 14px 28px; border-radius: 999px; border: 2px solid var(--line); color: var(--text); }
+.chip.hot { background: var(--spark); color: var(--spark-ink); border-color: var(--spark); font-weight: 500; }
+
+.cards { display: grid; gap: 28px; }
+.cards.c3 { grid-template-columns: repeat(3, 1fr); }
+.cards.c4 { grid-template-columns: repeat(4, 1fr); }
+.cards.c2 { grid-template-columns: repeat(2, 1fr); }
+.card { background: linear-gradient(180deg, var(--paper), rgba(33,28,59,.6)); border: 2px solid var(--line); border-radius: 28px; padding: 44px; display: flex; flex-direction: column; gap: 18px; }
+.card .num { font-family: var(--font-mono); font-size: 26px; color: var(--violet); letter-spacing: .1em; }
+.card p { font-size: 34px; }
+.card.hot { border-color: var(--spark); box-shadow: 0 0 0 4px rgba(52,211,153,.12); }
+.tag { align-self: flex-start; font-family: var(--font-mono); font-size: 22px; letter-spacing: .1em; text-transform: uppercase; padding: 8px 16px; border-radius: 10px; }
+.tag.block { background: repeating-linear-gradient(45deg, #ff6b81 0 8px, #d94860 8px 16px); color: #2a0610; }
+.tag.high { background: var(--violet); color: #1a1040; }
+.tag.med { background: #6f5bd0; color: #fff; }
+.tag.low { background: transparent; border: 2px dashed var(--muted); color: var(--muted); }
+
+.mock { display:flex; flex-direction:column; justify-content:center; background: #0d0a1e; border: 2px solid var(--line); border-radius: 24px; padding: 40px; font-family: var(--font-mono); font-size: 32px; line-height: 1.6; color: var(--text); }
+.mock .cap { font-size: 22px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 20px; }
+.leak { background: rgba(255,107,129,.22); border-bottom: 3px solid #ff6b81; padding: 0 6px; border-radius: 4px; }
+.safe { background: rgba(52,211,153,.2); border-bottom: 3px solid var(--spark); color: #a8f5d3; padding: 0 6px; border-radius: 4px; }
+.toast { display: inline-flex; gap: 22px; align-items: center; background: var(--spark); color: var(--spark-ink); font-family: var(--font-mono); font-size: 28px; padding: 20px 32px; border-radius: 18px; font-weight: 500; }
+.toast u { text-decoration: underline; text-underline-offset: 6px; }
+
+.flow { display: flex; align-items: center; gap: 0; }
+.node { flex: 1; background: var(--paper); border: 2px solid var(--line); border-radius: 24px; padding: 34px 26px; text-align: center; }
+.node h3 { font-size: 40px; }
+.node p { font-size: 26px; margin-top: 10px; }
+.node.hot { border-color: var(--spark); }
+.arrow { display:flex; align-items:center; justify-content:center; width: 56px; text-align: center; color: var(--violet); font-size: 44px; flex: none; }
+.boundary { position: relative; border: 3px dashed rgba(155,131,255,.55); border-radius: 36px; padding: 70px 34px 34px; }
+.boundary > .mono { position: absolute; top: 18px; left: 34px; color: var(--violet); }
+
+.table { width: 100%; border-collapse: separate; border-spacing: 0 14px; }
+.table th { font-family: var(--font-mono); font-size: 26px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; text-align: left; padding: 0 30px 6px; color: var(--muted); }
+.table th.us { color: var(--spark); }
+.table td { background: var(--paper); font-size: 38px; font-weight: 600; padding: 30px; color: var(--muted); }
+.table td:first-child { border-radius: 20px 0 0 20px; font-family: var(--font-mono); font-size: 26px; letter-spacing: .1em; text-transform: uppercase; }
+.table td:last-child { border-radius: 0 20px 20px 0; color: var(--text); font-weight: 800; border: 2px solid var(--spark); border-left: 0; }
+
+.bigstat { font-weight: 800; font-size: 420px; letter-spacing: -.05em; line-height: .9; color: var(--spark); }
+.mascot { position: absolute; filter: drop-shadow(0 40px 60px rgba(0,0,0,.5)); animation: float 4s ease-in-out infinite; }
+.ring { position: absolute; border-radius: 50%; border: 2px dashed rgba(155,131,255,.4); animation: spin 40s linear infinite; }
+.stack { display: flex; flex-direction: column; }
+.abs-bottom { position: absolute; left: 140px; right: 140px; bottom: 110px; }
+
+/* ===========================================
+   ANIMATION: staggered reveal on the active slide
+   Set style="--i:N" on an element to delay it.
+   =========================================== */
+.reveal { opacity: 0; transform: translateY(40px); transition: opacity .8s var(--ease), transform .8s var(--ease); transition-delay: calc(var(--i, 0) * .12s + .1s); }
+.slide.visible .reveal { opacity: 1; transform: none; }
+@keyframes float { 50% { transform: translateY(-18px); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===========================================
+   DECK CONTROLS (outside the stage): progress + hint
+   =========================================== */
+.deck-controls { display: flex; gap: 10px; align-items: center; opacity: .0; transition: opacity .3s; }
+body:hover .deck-controls { opacity: .9; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: #ffffff33; cursor: pointer; }
+.dot.on { background: var(--spark); }
+
+/* ===========================================
+   INLINE EDITING (press E, Ctrl+S to download)
+   =========================================== */
+.edit-hotzone { position: fixed; top: 0; left: 0; width: 80px; height: 80px; z-index: 10000; }
+.edit-toggle { position: fixed; top: 14px; left: 14px; z-index: 10001; background: var(--spark); color: var(--spark-ink); border: 0; border-radius: 10px; padding: 8px 14px; font: 500 15px var(--font-mono); opacity: 0; pointer-events: none; transition: opacity .3s; cursor: pointer; }
+.edit-toggle.show, .edit-toggle.active { opacity: 1; pointer-events: auto; }
+body.editing [contenteditable] { outline: 2px dashed var(--spark); outline-offset: 6px; }
+</style>
+</head>
+<body>
+<div class="deck-viewport">
+  <main class="deck-stage" id="deckStage">
+<section class="slide title active visible">
+  <div class="ring" style="right:110px;top:150px;width:800px;height:800px"></div>
+  <img class="mascot" src="assets/lock.png" alt="Deadbolt lock mascot" style="right:170px;top:200px;width:700px">
+  <div class="pad" style="padding-top:250px">
+    <h1 class="reveal">Project<i>Name</i></h1>
+    <p class="lead reveal" style="--i:2;max-width:1000px;margin-top:30px">One-line promise: what it does, for whom.</p>
+    <div class="chips reveal" style="--i:4;margin-top:70px"><span class="chip hot">Key claim</span><span class="chip">Second claim</span><span class="chip">Third claim</span></div>
+  </div></section>
+<section class="slide "><div class="chrome mono"><span><b>●</b> Deadbolt</span><span>VT Hacks 14 &nbsp;·&nbsp; <span data-page></span></span></div><div class="pad" style="padding-top:190px">
+    <div class="eyebrow reveal">The problem</div>
+    <h2 class="reveal" style="--i:1">One sharp sentence about the <i>pain</i>.</h2></div><div class="cards c3 abs-bottom"><div class="card reveal" style="--i:3"><span class="num">01</span><h3>Pain point</h3><p>One short line of support.</p></div><div class="card reveal" style="--i:4"><span class="num">02</span><h3>Pain point</h3><p>One short line of support.</p></div><div class="card reveal" style="--i:5"><span class="num">03</span><h3>Pain point</h3><p>One short line of support.</p></div></div></section>
+<section class="slide "><div class="chrome mono"><span><b>●</b> Deadbolt</span><span>VT Hacks 14 &nbsp;·&nbsp; <span data-page></span></span></div><div class="pad" style="padding-top:190px">
+    <div class="eyebrow reveal">Context</div>
+    <h2 class="reveal" style="--i:1">A big statement slide. Keep it <i>short</i>.</h2><p class="lead reveal" style="--i:2">Optional one-line lead-in that a speaker can expand on.</p></div></section>
+<section class="slide "><div class="chrome mono"><span><b>●</b> Deadbolt</span><span>VT Hacks 14 &nbsp;·&nbsp; <span data-page></span></span></div><div class="pad" style="padding-top:190px">
+    <div class="eyebrow reveal">The idea</div>
+    <h2 class="reveal" style="--i:1;font-size:120px">Frame it as two <i>questions</i>.</h2></div>
+    <div class="cards c2 abs-bottom" style="bottom:120px"><div class="card reveal hot" style="--i:2"><span class="num">01</span><h3 style="font-size:68px">First question?</h3><p>One line of support.</p></div><div class="card reveal" style="--i:3"><span class="num">02</span><h3 style="font-size:68px">Second question?</h3><p>One line of support.</p></div></div></section>
+<section class="slide "><div class="chrome mono"><span><b>●</b> Deadbolt</span><span>VT Hacks 14 &nbsp;·&nbsp; <span data-page></span></span></div><div class="pad" style="padding-top:190px">
+    <div class="eyebrow reveal">Live demo</div>
+    <h2 class="reveal" style="--i:1;font-size:112px">Show the <i>before and after</i>.</h2></div>
+    <div class="abs-bottom" style="bottom:210px;display:grid;grid-template-columns:1fr 90px 1fr;align-items:stretch">
+      <div class="mock reveal" style="--i:2"><div class="cap">Before Enter</div><div>Raw input with <span class="leak">the risky bit</span> highlighted.</div></div>
+      <div class="arrow reveal" style="--i:3;width:auto">→</div>
+      <div class="mock reveal" style="--i:4;border-color:var(--spark)"><div class="cap">What actually leaves</div><div>Output with <span class="safe">the safe result</span> highlighted.</div></div>
+    </div>
+    <div class="reveal" style="--i:5;position:absolute;right:140px;bottom:80px"><div class="toast">Result summary &nbsp;·&nbsp; <u>Action</u></div></div></section>
+<section class="slide "><div class="chrome mono"><span><b>●</b> Deadbolt</span><span>VT Hacks 14 &nbsp;·&nbsp; <span data-page></span></span></div><div class="pad" style="padding-top:190px">
+    <div class="eyebrow reveal">How it works</div>
+    <h2 class="reveal" style="--i:1;font-size:104px">Four tiers, <i>one</i> rule.</h2></div>
+    <div class="cards c4 abs-bottom" style="bottom:100px"><div class="card reveal" style="--i:2"><span class="tag block">Tier 1</span><h3>What it covers</h3><p>What happens.</p></div><div class="card reveal" style="--i:3"><span class="tag high">Tier 2</span><h3>What it covers</h3><p>What happens.</p></div><div class="card reveal" style="--i:4"><span class="tag med">Tier 3</span><h3>What it covers</h3><p>What happens.</p></div><div class="card reveal" style="--i:5"><span class="tag low">Tier 4</span><h3>What it covers</h3><p>What happens.</p></div></div></section>
+<section class="slide "><div class="chrome mono"><span><b>●</b> Deadbolt</span><span>VT Hacks 14 &nbsp;·&nbsp; <span data-page></span></span></div><div class="pad" style="padding-top:190px">
+    <div class="eyebrow reveal">Architecture</div>
+    <h2 class="reveal" style="--i:1;font-size:112px">Explain the <i>boundary</i>.</h2></div>
+    <div class="abs-bottom" style="bottom:260px">
+      <div class="boundary reveal" style="--i:2"><span class="mono">Trust boundary</span><div class="flow"><div class="node reveal" style="--i:2"><h3>Step 1</h3><p>Detail</p></div><div class="arrow reveal" style="--i:2">→</div><div class="node reveal" style="--i:3"><h3>Step 2</h3><p>Detail</p></div><div class="arrow reveal" style="--i:3">→</div><div class="node reveal hot" style="--i:4"><h3>Step 3</h3><p>Detail</p></div><div class="arrow reveal" style="--i:4">→</div><div class="node reveal" style="--i:5"><h3>Step 4</h3><p>Detail</p></div></div></div>
+    </div>
+    <div class="abs-bottom reveal" style="--i:7;bottom:100px"><p style="font-size:38px"><b>The one guarantee you want the room to remember.</b></p></div></section>
+<section class="slide "><div class="chrome mono"><span><b>●</b> Deadbolt</span><span>VT Hacks 14 &nbsp;·&nbsp; <span data-page></span></span></div><div class="pad" style="padding-top:190px">
+    <div class="eyebrow reveal">Versus the alternatives</div>
+    <h2 class="reveal" style="--i:1;font-size:112px">Why you <i>win</i>.</h2></div>
+    <div class="abs-bottom" style="bottom:90px"><table class="table"><tr><th></th><th>Them</th><th class="us">Us</th></tr><tr class="reveal" style="--i:2"><td>Row one</td><td>Their answer</td><td>Our answer</td></tr><tr class="reveal" style="--i:3"><td>Row two</td><td>Their answer</td><td>Our answer</td></tr><tr class="reveal" style="--i:4"><td>Row three</td><td>Their answer</td><td>Our answer</td></tr><tr class="reveal" style="--i:5"><td>Row four</td><td>Their answer</td><td>Our answer</td></tr></table></div></section>
+<section class="slide "><div class="chrome mono"><span><b>●</b> Deadbolt</span><span>VT Hacks 14 &nbsp;·&nbsp; <span data-page></span></span></div><div class="pad" style="padding-top:190px">
+    <div class="eyebrow reveal">The number</div>
+    <div class="bigstat reveal" style="--i:1">00<span style='font-size:200px'>ms</span></div>
+    <p class="lead reveal" style="--i:2;margin-top:20px">What the number means, in one line a judge can repeat.</p></div></section>
+<section class="slide "><div class="chrome mono"><span><b>●</b> Deadbolt</span><span>VT Hacks 14 &nbsp;·&nbsp; <span data-page></span></span></div>
+  <div class="ring" style="right:110px;top:150px;width:800px;height:800px"></div>
+  <img class="mascot" src="assets/lock.png" alt="" style="right:170px;top:200px;width:700px">
+  <div class="pad" style="padding-top:260px">
+    <h2 class="reveal" style="font-size:170px;line-height:.98;max-width:1000px">Closing<br><i>line.</i></h2>
+    <p class="lead reveal" style="--i:2;max-width:1000px">One sentence: the ask, the next step, or the takeaway.</p>
+    <div class="chips reveal" style="--i:3;margin-top:60px"><span class="chip hot">Project</span><span class="chip">Event</span></div>
+  </div></section>
+  </main>
+</div>
+<nav class="deck-controls" aria-label="Slide progress"></nav>
+<div class="edit-hotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">Edit (E)</button>
+<script>
+/* ===========================================
+   SLIDE PRESENTATION CONTROLLER
+   Keys: arrows / space / PgUp / PgDn / Home / End. Swipe + wheel too.
+   =========================================== */
+class SlidePresentation {
+  constructor() {
+    this.slides = [...document.querySelectorAll('.slide')];
+    this.stage = document.getElementById('deckStage');
+    this.i = 0;
+    this.buildChrome();
+    this.scale(); addEventListener('resize', () => this.scale());
+    addEventListener('keydown', e => this.key(e));
+    let x0 = null;
+    addEventListener('touchstart', e => x0 = e.touches[0].clientX, { passive: true });
+    addEventListener('touchend', e => { if (x0 === null) return; const d = e.changedTouches[0].clientX - x0; if (Math.abs(d) > 50) this.go(this.i + (d < 0 ? 1 : -1)); x0 = null; });
+    let lock = false;
+    addEventListener('wheel', e => { if (lock || Math.abs(e.deltaY) < 30) return; lock = true; this.go(this.i + (e.deltaY > 0 ? 1 : -1)); setTimeout(() => lock = false, 700); }, { passive: true });
+    const h = parseInt(location.hash.slice(1), 10);
+    this.go(isNaN(h) ? 0 : h - 1);
+  }
+  buildChrome() {
+    const n = this.slides.length;
+    this.slides.forEach((s, k) => s.querySelectorAll('[data-page]').forEach(el => el.textContent = String(k + 1).padStart(2, '0') + ' / ' + String(n).padStart(2, '0')));
+    const c = document.querySelector('.deck-controls');
+    this.dots = this.slides.map((_, k) => { const d = document.createElement('span'); d.className = 'dot'; d.onclick = () => this.go(k); c.appendChild(d); return d; });
+  }
+  scale() {
+    const f = Math.min(innerWidth / 1920, innerHeight / 1080);
+    this.stage.style.transform = `translate(${(innerWidth - 1920 * f) / 2}px, ${(innerHeight - 1080 * f) / 2}px) scale(${f})`;
+  }
+  key(e) {
+    if (e.target.isContentEditable) return;
+    if (['ArrowRight', 'ArrowDown', ' ', 'PageDown', 'Enter'].includes(e.key)) { e.preventDefault(); this.go(this.i + 1); }
+    else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); this.go(this.i - 1); }
+    else if (e.key === 'Home') this.go(0);
+    else if (e.key === 'End') this.go(this.slides.length - 1);
+  }
+  go(k) {
+    this.i = Math.max(0, Math.min(k, this.slides.length - 1));
+    this.slides.forEach((s, j) => { s.classList.toggle('active', j === this.i); s.classList.toggle('visible', j === this.i); });
+    this.dots.forEach((d, j) => d.classList.toggle('on', j === this.i));
+    history.replaceState(null, '', '#' + (this.i + 1));
+  }
+}
+new SlidePresentation();
+
+/* ===========================================
+   INLINE EDITING: hover top-left corner or press E.
+   Ctrl+S downloads the edited file.
+   =========================================== */
+const editor = {
+  active: false,
+  toggle() {
+    this.active = !this.active;
+    document.body.classList.toggle('editing', this.active);
+    document.getElementById('editToggle').classList.toggle('active', this.active);
+    document.querySelectorAll('.slide h1,.slide h2,.slide h3,.slide p,.slide li,.slide .chip,.slide .mock,.slide td,.slide th,.slide .toast,.slide .eyebrow')
+      .forEach(el => this.active ? el.setAttribute('contenteditable', 'true') : el.removeAttribute('contenteditable'));
+  },
+  save() {
+    const was = this.active; if (was) this.toggle();
+    const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+    a.download = location.pathname.split('/').pop() || 'deck.html'; a.click();
+    if (was) this.toggle();
+  }
+};
+{
+  const hz = document.querySelector('.edit-hotzone'), tg = document.getElementById('editToggle'); let t;
+  const show = () => { clearTimeout(t); tg.classList.add('show'); };
+  const hide = () => { t = setTimeout(() => { if (!editor.active) tg.classList.remove('show'); }, 400); };
+  hz.addEventListener('mouseenter', show); hz.addEventListener('mouseleave', hide);
+  tg.addEventListener('mouseenter', show); tg.addEventListener('mouseleave', hide);
+  hz.addEventListener('click', () => editor.toggle()); tg.addEventListener('click', () => editor.toggle());
+  addEventListener('keydown', e => {
+    if ((e.key === 'e' || e.key === 'E') && !e.target.isContentEditable) editor.toggle();
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); editor.save(); }
+  });
+}
+</script>
+</body>
+</html>
