@@ -47,12 +47,17 @@ export function redact(
   const toRedact = findings.filter((f) => atLeast(f.severity, threshold));
   const untouched = findings.filter((f) => !atLeast(f.severity, threshold));
 
-  // (kind, value) -> token, so a repeated value reuses its token.
+  // value -> token, so a repeated value reuses its token.
   const assigned = new Map<string, Placeholder>();
   const counters = new Map<string, number>();
 
   function tokenFor(f: Finding): string {
-    const key = `${stemOf(f)}\u0000${f.value}`;
+    // Keyed on the string alone. The model is free to call the same "VT" an
+    // organisation in one place and a location in another, and keying on the
+    // label as well handed it two tokens -- so one string was counted twice
+    // and the reveal toggle's number disagreed with what was on screen. The
+    // first mention in the text decides which label the token carries.
+    const key = f.value;
     const existing = assigned.get(key);
     if (existing) return existing.token;
     const stem = stemOf(f);

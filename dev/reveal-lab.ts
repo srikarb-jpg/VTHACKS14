@@ -38,6 +38,24 @@ thread.append(sr);
 msg('user', 'My SSN is [SSN_1] and my email is [EMAIL_1]');
 const reply = msg('assistant', '');
 
+// Stands in for claude.ai's email-draft card: tokens live in an <input> and a
+// <textarea> value, which the text-node walk cannot see. The longer email
+// makes the revealed text reflow, and the card scrolls like the real one.
+const draft = document.createElement('div');
+draft.className = 'msg assistant';
+draft.style.cssText = 'display:grid;gap:6px;max-height:190px;overflow-y:auto;';
+const subject = document.createElement('input');
+subject.type = 'text';
+subject.value = 'Re: records for [EMAIL_1]';
+subject.style.cssText = 'font:inherit;padding:6px 10px;';
+const body = document.createElement('textarea');
+body.value =
+  'Dear Dana,\n\nI can confirm the number on file is [SSN_1]. Please reply to [EMAIL_1] ' +
+  'if anything in this looks wrong, and I will correct it the same day.\n\nBest regards,\nKayden';
+body.style.cssText = 'font:inherit;padding:8px 10px;resize:none;field-sizing:content;';
+draft.append(subject, body);
+thread.append(draft);
+
 const composer = document.getElementById('composer') as HTMLElement;
 const params = new URLSearchParams(location.search);
 if (params.has('sidebar')) document.body.classList.add('with-sidebar');

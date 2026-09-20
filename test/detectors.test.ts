@@ -3,6 +3,7 @@ import { scan } from '../src/worker/detectors';
 import { luhn } from '../src/worker/detectors/identifiers';
 import { redact, revertOne } from '../src/worker/redact';
 import { NEGATIVES, POSITIVES } from './fixtures/prompts';
+import type { Finding } from '../src/shared/types';
 
 const kinds = (text: string) => new Set(scan(text).findings.map((f) => f.kind));
 
@@ -85,5 +86,26 @@ describe('latency budget', () => {
     const started = performance.now();
     scan(long);
     expect(performance.now() - started).toBeLessThan(100);
+  });
+});
+
+describe('one string, one token', () => {
+  const finding = (kind: 'organization' | 'location', start: number): Finding => ({
+    kind,
+    severity: 'medium',
+    label: kind,
+    start,
+    end: start + 2,
+    value: 'VT',
+    detector: `ner.${kind}`,
+  });
+
+  it('gives the same string one token even when the labels disagree', () => {
+    // The model called the first "VT" an organisation and the second a place.
+    const text = 'VT today, then VT again';
+    const r = redact(text, [finding('organization', 0), finding('location', 15)]);
+
+    expect(r.redacted).toBe('[ORG_1] today, then [ORG_1] again');
+    expect(r.placeholders).toHaveLength(1);
   });
 });

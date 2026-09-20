@@ -15,6 +15,15 @@ import type { Placeholder } from '../shared/types';
 import { PLACEHOLDER_PATTERN } from '../shared/config';
 import { getLayer } from './ui/shell';
 import type { ComposerAdapter } from './adapters/types';
+import { coveredByPage } from './occlusion';
+import {
+  fieldCount,
+  fieldTokens,
+  isTrackedField,
+  paintFields,
+  releaseFields,
+  scanFields,
+} from './rehydrate-fields';
 
 const MARKED = 'data-pf-rehydrated';
 
@@ -152,7 +161,10 @@ function paintable(w: Wrapped, deep: boolean): DOMRect | null {
   if (rect.bottom <= 0 || rect.top >= window.innerHeight) return null;
   if (rect.right <= 0 || rect.left >= window.innerWidth) return null;
   if (deep) w.clipped = clippedAway(span, rect);
-  return w.clipped ? null : rect;
+  if (w.clipped) return null;
+  // Every frame, not just on a deep pass: the composer grows and the thread
+  // scrolls under it without either event being ours to hear.
+  return coveredByPage(span, rect) ? null : rect;
 }
 
 /**
@@ -258,7 +270,10 @@ function paint(deep: boolean): void {
     }
   }
 
-  if (pruned) onCountChange?.(revealedCount());
+  // Fields hold their tokens in a value rather than a text node, so they are
+  // painted by their own module -- but they share this toggle and this count.
+  const fieldsChanged = paintFields(revealAll);
+  if (pruned || fieldsChanged) onCountChange?.(revealedCount());
   track();
 }
 
@@ -300,7 +315,7 @@ export function setRevealAll(on: boolean): void {
  * "Show real values (6)" for two redactions.
  */
 export function revealedCount(): number {
-  return new Set(wrapped.map((w) => w.token)).size;
+  return new Set([...wrapped.map((w) => w.token), ...fieldTokens()]).size;
 }
 
 function wrap(textNode: Text, placeholders: Map<string, Placeholder>): void {
@@ -431,10 +446,13 @@ export function startRehydration(
         if (ourHost) skip.push(ourHost);
 
         const before = wrapped.length;
+        const fieldsBefore = fieldCount();
         walk(document.body, map, skip);
-        if (wrapped.length !== before) {
+        scanFields(document.body, map, skip);
+        if (wrapped.length !== before || fieldCount() !== fieldsBefore) {
           console.info(
             `[deadbolt] rehydrate: wrapped ${wrapped.length - before} placeholder(s), ` +
+              `${fieldCount() - fieldsBefore} field(s), ` +
               `${revealedCount()} item(s) on the page`,
           );
           onCountChange?.(revealedCount());
@@ -448,10 +466,19 @@ export function startRehydration(
 
   const observer = new MutationObserver(settle);
   observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+
+  // Typing into a field changes its value without touching the DOM, so the
+  // observer never hears about it and the mirror would show stale text.
+  const onInput = (e: Event): void => {
+    if (isTrackedField(e.target)) repaintReveals();
+  };
+  document.addEventListener('input', onInput, true);
   settle();
 
   return () => {
     observer.disconnect();
+    document.removeEventListener('input', onInput, true);
     window.clearTimeout(timer);
+    releaseFields();
   };
 }

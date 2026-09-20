@@ -98,4 +98,77 @@ describe('hover rehydration', () => {
     mod.repaintReveals();
     expect(mod.revealedCount()).toBe(0);
   });
+
+  it('finds tokens inside a field value and counts them with the rest', async () => {
+    vi.useFakeTimers();
+    const mod = await load();
+    document.body.innerHTML =
+      '<input id="subject" value="Re: [EMAIL_1]">' +
+      '<textarea id="body">SSN [SSN_1], again [EMAIL_1]</textarea>' +
+      '<p>plain [EMAIL_1]</p>';
+    await start(mod);
+
+    // Two distinct tokens across three places -- the field is not counted twice.
+    expect(mod.revealedCount()).toBe(2);
+    // The field's own value is never rewritten.
+    expect((document.getElementById('body') as HTMLTextAreaElement).value).toBe(
+      'SSN [SSN_1], again [EMAIL_1]',
+    );
+  });
+
+  it('never puts a real value into the page when a field is revealed', async () => {
+    vi.useFakeTimers();
+    const mod = await load();
+    document.body.innerHTML = '<textarea id="body">SSN [SSN_1]</textarea>';
+    const field = document.getElementById('body') as HTMLTextAreaElement;
+    // happy-dom lays nothing out; give the field a box so it counts as on screen.
+    field.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: 200, bottom: 60, width: 200, height: 60 }) as DOMRect;
+    // happy-dom reports an empty overflow for these, which reads as "clips".
+    for (const el of [document.body, document.documentElement]) {
+      el.style.overflowX = 'visible';
+      el.style.overflowY = 'visible';
+    }
+    await start(mod);
+    mod.setRevealAll(true);
+
+    expect(field.value).toBe('SSN [SSN_1]');
+    expect(document.body.innerHTML).not.toContain('423-12-1234');
+    // Only a colour goes in, and it comes back out.
+    expect(field.style.color).toBe('transparent');
+    mod.setRevealAll(false);
+    expect(field.style.color).toBe('');
+  });
+
+  it('does not paint over text the page has drawn something on top of', async () => {
+    vi.useFakeTimers();
+    const { coveredByPage } = await import('../src/content/occlusion');
+    document.body.innerHTML = '<p id="msg">hi</p><div id="composer">write</div>';
+    const msg = document.getElementById('msg') as HTMLElement;
+    const composer = document.getElementById('composer') as HTMLElement;
+    const box = { left: 10, top: 10, width: 40, height: 16 };
+
+    document.elementFromPoint = () => composer;
+    expect(coveredByPage(msg, box)).toBe(true);
+    document.elementFromPoint = () => msg;
+    expect(coveredByPage(msg, box)).toBe(false);
+    // An ancestor answering means the text itself is what is on top.
+    document.elementFromPoint = () => document.body;
+    expect(coveredByPage(msg, box)).toBe(false);
+  });
+
+  it('notices a menu over the edge of a big field even when its middle is clear', async () => {
+    vi.useFakeTimers();
+    const { partlyCovered } = await import('../src/content/occlusion');
+    document.body.innerHTML = '<textarea id="f"></textarea><div id="menu">menu</div>';
+    const field = document.getElementById('f') as HTMLElement;
+    const menu = document.getElementById('menu') as HTMLElement;
+    const box = { left: 100, top: 100, width: 600, height: 300 };
+
+    // The menu sits over the left 200px only.
+    document.elementFromPoint = (x: number) => (x < 300 ? menu : field);
+    expect(partlyCovered(field, box)).toBe(true);
+    document.elementFromPoint = () => field;
+    expect(partlyCovered(field, box)).toBe(false);
+  });
 });

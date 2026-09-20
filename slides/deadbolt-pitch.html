@@ -162,7 +162,9 @@ svg {
     *,
     *::before,
     *::after {
-        animation-duration: 0.01ms !important;
+        /* Stop looping motion outright. Shrinking the duration instead makes an
+           infinite animation restart every 0.01ms, which reads as a flicker. */
+        animation: none !important;
         transition-duration: 0.2s !important;
     }
 }
@@ -253,7 +255,7 @@ p b, li b { color: var(--text); font-weight: 800; }
 .table td:last-child { border-radius: 0 20px 20px 0; color: var(--text); font-weight: 800; border: 2px solid var(--spark); border-left: 0; }
 
 .bigstat { font-weight: 800; font-size: 420px; letter-spacing: -.05em; line-height: .9; color: var(--spark); }
-.mascot { position: absolute; filter: drop-shadow(0 40px 60px rgba(0,0,0,.5)); animation: float 4s ease-in-out infinite; }
+.mascot { position: absolute; filter: drop-shadow(0 40px 60px rgba(0,0,0,.5)); }
 .ring { position: absolute; border-radius: 50%; border: 2px dashed rgba(155,131,255,.4); animation: spin 40s linear infinite; }
 .rows { display: flex; flex-direction: column; gap: 18px; }
 .row { display: grid; grid-template-columns: 90px 460px 1fr; align-items: center; gap: 24px; padding: 0 44px; height: 116px; border-radius: 24px; border: 2px solid var(--spark); background: linear-gradient(90deg, rgba(52,211,153,.16), rgba(52,211,153,.04)); box-shadow: inset 8px 0 0 var(--spark); }
@@ -317,7 +319,6 @@ p b, li b { color: var(--text); font-weight: 800; }
    =========================================== */
 .reveal { opacity: 0; transform: translateY(40px); transition: opacity .8s var(--ease), transform .8s var(--ease); transition-delay: calc(var(--i, 0) * .12s + .1s); }
 .slide.visible .reveal { opacity: 1; transform: none; }
-@keyframes float { 50% { transform: translateY(-18px); } }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ===========================================
@@ -406,7 +407,7 @@ body.editing [contenteditable] { outline: 2px dashed var(--spark); outline-offse
 <section class="slide "><div class="chrome mono"><span><b>●</b> Deadbolt</span><span>VT Hacks 14 &nbsp;·&nbsp; <span data-page></span></span></div>
   <div class="ring" style="left:-340px;bottom:-380px;width:1080px;height:1080px"></div>
   <div class="ring" style="right:-220px;top:-300px;width:880px;height:880px;animation-direction:reverse;animation-duration:55s"></div>
-  <img class="mascot" src="assets/lock.png" alt="" style="right:90px;top:300px;width:520px;animation-duration:6s">
+  <img class="mascot" src="assets/lock.png" alt="" style="right:90px;top:300px;width:520px">
   <div class="pad" style="display:flex;flex-direction:column;justify-content:center">
     <div class="reveal" style="font-size:76px;font-weight:800;letter-spacing:-.04em;line-height:1;margin-bottom:64px">Dead<i style="font-style:normal;color:var(--spark)">bolt</i></div>
     <h1 class="reveal" style="--i:2;font-size:196px;line-height:.92;align-self:flex-start">Type anything.</h1>
