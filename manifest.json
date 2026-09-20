@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Prompt Firewall",
+  "name": "Deadbolt",
   "version": "0.1.0",
   "description": "Scrubs sensitive content out of AI chat prompts before they leave your machine. Everything that decides runs locally.",
   "minimum_chrome_version": "116",
@@ -31,7 +31,7 @@
     }
   ],
   "action": {
-    "default_title": "Prompt Firewall",
+    "default_title": "Deadbolt",
     "default_popup": "src/popup/index.html",
     "default_icon": {
       "16": "icons/icon-16.png",

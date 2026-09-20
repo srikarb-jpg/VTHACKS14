@@ -7,7 +7,7 @@
 import lockInline from '../../assets/lock-sm.png?inline';
 import type { Theme } from '../../shared/types';
 
-const HOST_ID = 'prompt-firewall-root';
+const HOST_ID = 'deadbolt-root';
 
 const BASE_CSS = `
   :host { all: initial; }

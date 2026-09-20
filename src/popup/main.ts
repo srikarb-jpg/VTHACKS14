@@ -230,7 +230,7 @@ function categories(s: State): HTMLElement {
     body = h(
       'p',
       { class: 'copy' },
-      s.events.length ? 'Nothing redacted yet today.' : 'Anything Prompt Firewall redacts shows up here.',
+      s.events.length ? 'Nothing redacted yet today.' : 'Anything Deadbolt redacts shows up here.',
     );
   }
   return h('div', { class: 'section' }, h('h2', { class: 'section-title' }, 'Today by category'), body);
@@ -289,7 +289,7 @@ function unsupported(): Child[] {
       h(
         'p',
         { class: 'copy' },
-        'Prompt Firewall only works on the chat sites it supports. Open one of them and this popup will show what it redacted.',
+        'Deadbolt only works on the chat sites it supports. Open one of them and this popup will show what it redacted.',
       ),
     ),
     h(

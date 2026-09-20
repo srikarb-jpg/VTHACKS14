@@ -144,7 +144,7 @@ async function localModelUrl(remote: string): Promise<{ url: string; revoke: () 
   } catch (err) {
     // Storage unavailable or full: fall back to letting ORT download it, so
     // the feature still works, only slowly.
-    console.warn('[prompt-firewall:offscreen] model cache unavailable, using network', err);
+    console.warn('[deadbolt:offscreen] model cache unavailable, using network', err);
     return { url: remote, source: 'network (uncached)', ...none };
   }
 }
@@ -164,14 +164,14 @@ async function ensureModel(): Promise<void> {
     const importMs = performance.now() - tImport;
 
     const variant = PREFER_WEBGPU && caps.webgpu ? VARIANTS.webgpu : VARIANTS.wasm;
-    console.info(`[prompt-firewall:offscreen] loading ${variant.file} on ${variant.provider}`);
+    console.info(`[deadbolt:offscreen] loading ${variant.file} on ${variant.provider}`);
 
     const tFetch = performance.now();
     const local = await localModelUrl(
       `https://huggingface.co/${MODEL_REPO}/resolve/main/${variant.file}`,
     );
     console.info(
-      `[prompt-firewall:offscreen] model bytes from ${local.source} in ` +
+      `[deadbolt:offscreen] model bytes from ${local.source} in ` +
         `${(performance.now() - tFetch).toFixed(0)}ms`,
     );
 
@@ -203,7 +203,7 @@ async function ensureModel(): Promise<void> {
     model = instance;
     activeProvider = variant.provider;
     console.info(
-      `[prompt-firewall:offscreen] load: import ${importMs.toFixed(0)}ms + ` +
+      `[deadbolt:offscreen] load: import ${importMs.toFixed(0)}ms + ` +
         `initialize ${initMs.toFixed(0)}ms (tokenizer + ONNX session creation)`,
     );
     lastError = null;
@@ -234,7 +234,7 @@ async function detect(
   const loadMs = performance.now() - loadStart;
   if (loadMs > 100) {
     console.warn(
-      `[prompt-firewall:offscreen] model (re)loaded in ${loadMs.toFixed(0)}ms — ` +
+      `[deadbolt:offscreen] model (re)loaded in ${loadMs.toFixed(0)}ms — ` +
         `the document was torn down since the last call`,
     );
   }
@@ -250,7 +250,7 @@ async function detect(
   );
   const chars = texts.reduce((n, s) => n + s.length, 0);
   console.info(
-    `[prompt-firewall:offscreen] inference ${(performance.now() - started).toFixed(0)}ms ` +
+    `[deadbolt:offscreen] inference ${(performance.now() - started).toFixed(0)}ms ` +
       `for ${texts.length} chunk(s) / ${chars} chars`,
   );
 
@@ -318,7 +318,7 @@ chrome.runtime.onMessage.addListener(
             reply({ type: 'ner:error', error: 'unknown request' });
         }
       } catch (err) {
-        console.error('[prompt-firewall:offscreen]', err);
+        console.error('[deadbolt:offscreen]', err);
         reply({ type: 'ner:error', error: String(err) });
       }
     })();
@@ -329,5 +329,5 @@ chrome.runtime.onMessage.addListener(
 
 void (async () => {
   const caps = await probe();
-  console.info(`[prompt-firewall:offscreen] ready boot=${BOOT_ID}`, caps);
+  console.info(`[deadbolt:offscreen] ready boot=${BOOT_ID}`, caps);
 })();

@@ -12,7 +12,7 @@ import type { UsageEvent } from './types';
 export type ReceiptPeriod = 7 | 30 | 'all';
 
 export interface Receipt {
-  product: 'Prompt Firewall';
+  product: 'Deadbolt';
   period: string;
   range: string;
   promptsChecked: number;
@@ -34,7 +34,7 @@ export function buildReceipt(
   const first = scoped[0]?.timestamp;
 
   return {
-    product: 'Prompt Firewall',
+    product: 'Deadbolt',
     period: period === 'all' ? 'All time' : `Last ${period} days`,
     range:
       period === 'all'

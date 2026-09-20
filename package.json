@@ -1,5 +1,5 @@
 {
-  "name": "prompt-firewall",
+  "name": "deadbolt",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "deploy": "npm run build && rm -rf /mnt/c/Users/belve/Downloads/promptfirewall && mkdir -p /mnt/c/Users/belve/Downloads/promptfirewall && cp -r dist/* /mnt/c/Users/belve/Downloads/promptfirewall/ && echo 'Load unpacked from C:\\\\Users\\\\belve\\\\Downloads\\\\promptfirewall'",
+    "deploy": "npm run build && rm -rf /mnt/c/Users/belve/Downloads/deadbolt && mkdir -p /mnt/c/Users/belve/Downloads/deadbolt && cp -r dist/* /mnt/c/Users/belve/Downloads/deadbolt/ && echo 'Load unpacked from C:\\\\Users\\\\belve\\\\Downloads\\\\deadbolt'",
     "sync-ort": "node scripts/sync-ort.mjs",
     "postinstall": "node scripts/sync-ort.mjs",
     "bench:ner": "node scripts/ner-bench.mjs"

@@ -132,7 +132,7 @@ export function policySection(settings: Settings): HTMLElement {
     h(
       'p',
       { class: 'sub' },
-      'Describe your organization’s sensitive formats to an AI assistant (for example, how contract numbers look), paste the JSON it returns, and Prompt Firewall enforces it on this device. Rules are patterns only. Describe formats with made-up examples, never real data.',
+      'Describe your organization’s sensitive formats to an AI assistant (for example, how contract numbers look), paste the JSON it returns, and Deadbolt enforces it on this device. Rules are patterns only. Describe formats with made-up examples, never real data.',
     ),
     h('div', { class: 'card' }, h('div', { style: 'display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px' }, copy), paste, h('div', { style: 'display:flex;gap:10px;margin-top:10px' }, check, save, clear), errors, status, rules),
     h('div', { class: 'card', style: 'margin-top:16px' }, h('h2', {}, 'Try it'), sample, matches),

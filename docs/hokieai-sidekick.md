@@ -1,7 +1,7 @@
 # HokieAI Side Kick: the policy author
 
 A personal agent built inside HokieAI that turns a plain-English description of
-an organization's sensitive formats into a policy Prompt Firewall enforces
+an organization's sensitive formats into a policy Deadbolt enforces
 locally.
 
 ## The division of labour

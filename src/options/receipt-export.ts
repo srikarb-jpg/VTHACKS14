@@ -45,7 +45,7 @@ export async function receiptPng(r: Receipt): Promise<Blob> {
     g.fillText(s, x, y);
   };
 
-  text('Prompt Firewall', 120, 150, 36, 700, '#5b3fd1');
+  text('Deadbolt', 120, 150, 36, 700, '#5b3fd1');
   text(`${r.period} · ${r.range}`, 120, 198, 26, 500, '#54448f');
   text(String(r.itemsKeptOut), 120, 400, 190, 800, '#1e1247');
   text('items kept out of my prompts', 120, 462, 38, 600, '#1e1247');
@@ -104,7 +104,7 @@ export function receiptSection(events: readonly UsageEvent[]): HTMLElement {
 
   const json = h('button', { type: 'button', class: 'btn ghost' }, 'Save JSON');
   json.addEventListener('click', () => {
-    save(new Blob([JSON.stringify(current(), null, 2)], { type: 'application/json' }), 'prompt-firewall-receipt.json');
+    save(new Blob([JSON.stringify(current(), null, 2)], { type: 'application/json' }), 'deadbolt-receipt.json');
     say('Saved.');
   });
 
@@ -112,7 +112,7 @@ export function receiptSection(events: readonly UsageEvent[]): HTMLElement {
   png.addEventListener('click', () => {
     receiptPng(current()).then(
       (b) => {
-        save(b, 'prompt-firewall-receipt.png');
+        save(b, 'deadbolt-receipt.png');
         say('Saved.');
       },
       () => say('Could not make the image.'),

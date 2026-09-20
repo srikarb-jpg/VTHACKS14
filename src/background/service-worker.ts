@@ -36,11 +36,11 @@ import { SUPPORTED_HOSTS } from '../shared/config';
 async function preloadIfEnabled(why: string): Promise<void> {
   const s = await settings.get();
   if (!s.enabled || !s.nerEnabled) return;
-  console.info(`[prompt-firewall] preloading model (${why})`);
+  console.info(`[deadbolt] preloading model (${why})`);
   const t0 = performance.now();
   const r = await askOffscreen({ type: 'ner:load' });
   console.info(
-    `[prompt-firewall] preload ${r.type === 'ner:loaded' && r.ok ? 'ready' : 'failed'} ` +
+    `[deadbolt] preload ${r.type === 'ner:loaded' && r.ok ? 'ready' : 'failed'} ` +
       `in ${(performance.now() - t0).toFixed(0)}ms`,
   );
 }
@@ -161,7 +161,7 @@ chrome.runtime.onMessage.addListener((msg: ToBackground & { target?: string }, s
   handle(msg, sender.tab?.id)
     .then(sendResponse)
     .catch((err: unknown) => {
-      console.error('[prompt-firewall] background error', err);
+      console.error('[deadbolt] background error', err);
       sendResponse({ type: 'ok' } satisfies FromBackground);
     });
   // Keeps the message channel open for the async response.

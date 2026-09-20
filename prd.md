@@ -1,10 +1,10 @@
-# Prompt Firewall — PRD / Spec
+# Deadbolt — PRD / Spec
 
 2026-09-19 · @Someone
 
 ## Summary
 
-Prompt Firewall is a browser extension that sits between the user and any AI chat site and asks two questions before a prompt leaves the machine: does this need to go out at all, and what is it carrying?
+Deadbolt is a browser extension that sits between the user and any AI chat site and asks two questions before a prompt leaves the machine: does this need to go out at all, and what is it carrying?
 
 The model is an ad blocker. It runs silently, does real work on every interaction, keeps a visible count of what it caught, and interrupts only when something genuinely matters. Nobody configures an ad blocker before browsing. Same bar here.
 

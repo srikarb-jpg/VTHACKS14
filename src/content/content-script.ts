@@ -94,7 +94,7 @@ let settings: Settings = {
 function applyPolicy(): void {
   customRules = compileRules(settings.policy);
   scanner.clear();
-  console.info(`[prompt-firewall] policy: ${customRules.length} custom rule(s)`);
+  console.info(`[deadbolt] policy: ${customRules.length} custom rule(s)`);
 }
 
 
@@ -116,7 +116,7 @@ const gate = new SubmitGate(adapter, {
 
     const result = scanNow(text);
     if (result.elapsedMs > SUBMIT_LATENCY_BUDGET_MS) {
-      console.warn(`[prompt-firewall] scan took ${result.elapsedMs.toFixed(1)}ms, over budget`);
+      console.warn(`[deadbolt] scan took ${result.elapsedMs.toFixed(1)}ms, over budget`);
     }
 
     // --- block tier: nothing leaves, regardless of anything else ----------
@@ -192,13 +192,13 @@ async function finishSubmitWithNer(
       new Promise((resolve) => setTimeout(resolve, SUBMIT_NER_TIMEOUT_MS)),
     ]);
   } catch (err) {
-    console.warn('[prompt-firewall] ner failed at submit', err);
+    console.warn('[deadbolt] ner failed at submit', err);
   }
   hidePending();
 
   if (nerFor !== text) {
     console.warn(
-      `[prompt-firewall] sending without model results after ` +
+      `[deadbolt] sending without model results after ` +
         `${(performance.now() - started).toFixed(0)}ms — names may be unredacted`,
     );
   }
@@ -234,7 +234,7 @@ function applyRedactionAndSend(
 
   const r = redact(text, resolveOverlaps(findings), REDACTION_THRESHOLD);
   if (!adapter.writeText(r.redacted)) {
-    console.error('[prompt-firewall] composer write failed; send cancelled');
+    console.error('[deadbolt] composer write failed; send cancelled');
     showWriteFailure();
     return 'cancel';
   }
@@ -243,7 +243,7 @@ function applyRedactionAndSend(
     if (!(await adapter.verifyCommitted(r.redacted))) {
       // The editor did not take our text. Do NOT send: releasing the event
       // here would transmit the original while we claim it was scrubbed.
-      console.error('[prompt-firewall] redaction not committed by the editor; send cancelled');
+      console.error('[deadbolt] redaction not committed by the editor; send cancelled');
       showWriteFailure();
       return;
     }
@@ -302,11 +302,11 @@ function auditSentMessage(placeholders: Placeholder[], pageBefore: string): void
   window.setTimeout(() => {
     const leaked = leakedValues(pageBefore, document.body.innerText, placeholders);
     if (!leaked.length) {
-      console.info(`[prompt-firewall] audit clean: ${placeholders.length} placeholder(s) held`);
+      console.info(`[deadbolt] audit clean: ${placeholders.length} placeholder(s) held`);
       return;
     }
     console.error(
-      '[prompt-firewall] AUDIT FAILED — this send put unredacted values on the page',
+      '[deadbolt] AUDIT FAILED — this send put unredacted values on the page',
       leaked,
     );
   }, 1200);
@@ -531,13 +531,13 @@ async function runNer(text: string): Promise<void> {
         ` = ${totalMs.toFixed(0)}ms [boot ${res.bootId}]`;
       if (res.loadMs > 1000) {
         console.warn(
-          `[prompt-firewall] offscreen document was torn down and reloaded the model ` +
+          `[deadbolt] offscreen document was torn down and reloaded the model ` +
             `(${res.loadMs.toFixed(0)}ms). Keepalive may not be holding.`,
         );
       }
       setNerTiming(Math.round(res.inferMs), Math.round(totalMs));
       if (res.error) {
-        console.warn('[prompt-firewall] ner error', res.error);
+        console.warn('[deadbolt] ner error', res.error);
         setNerState({ error: res.error });
         return;
       }
@@ -560,12 +560,12 @@ async function runNer(text: string): Promise<void> {
     nerFor = text;
     setNerState({ spans: nerFindings.length });
     console.info(
-      `[prompt-firewall] ner: ${chunks.length} chunks, ${dirty.length} sent, ` +
+      `[deadbolt] ner: ${chunks.length} chunks, ${dirty.length} sent, ` +
         `${all.length} spans -> ${nerFindings.length} findings${timing}`,
     );
     repaintWithNer();
   } catch (err) {
-    console.warn('[prompt-firewall] ner unavailable', err);
+    console.warn('[deadbolt] ner unavailable', err);
     setNerState({ error: String(err) });
   } finally {
     nerInFlight = false;
@@ -631,7 +631,7 @@ function onPaste(e: ClipboardEvent): void {
   const hits = fullScan(pasted).findings;
   if (hits.length) {
     console.info(
-      `[prompt-firewall] paste: ${hits.length} finding(s)`,
+      `[deadbolt] paste: ${hits.length} finding(s)`,
       hits.map((f) => f.label),
     );
   }
@@ -699,7 +699,7 @@ async function boot(): Promise<void> {
     setOverlayTheme(settings.theme);
     applyPolicy();
   } catch (err) {
-    console.warn('[prompt-firewall] settings unavailable, using defaults', err);
+    console.warn('[deadbolt] settings unavailable, using defaults', err);
   }
 
   document.addEventListener('input', onTyping, { capture: true });
@@ -724,7 +724,7 @@ async function boot(): Promise<void> {
     if (!next) return;
     settings = { ...settings, ...next };
     applyPolicy();
-    console.info('[prompt-firewall] settings updated', settings);
+    console.info('[deadbolt] settings updated', settings);
     // Flipping the theme in the popup repaints the panels in this tab too.
     setOverlayTheme(settings.theme);
     scheduleAdvisory(0);
@@ -741,7 +741,7 @@ async function boot(): Promise<void> {
   const onPick = (f: Finding): void => {
     if (f.severity !== 'low') return; // higher tiers are always replaced
     const now = toggleConfirmed(f);
-    console.info(`[prompt-firewall] ${now ? 'confirmed' : 'unconfirmed'} ${f.kind}: ${f.value}`);
+    console.info(`[deadbolt] ${now ? 'confirmed' : 'unconfirmed'} ${f.kind}: ${f.value}`);
     advisoryScan();
   };
   setHighlightHandler(onPick);
@@ -789,14 +789,14 @@ async function boot(): Promise<void> {
     if (found !== lastSeen) {
       lastSeen = found;
       console.info(
-        `[prompt-firewall] composer ${found ? 'found' : 'NOT FOUND — selectors may be stale'}`,
+        `[deadbolt] composer ${found ? 'found' : 'NOT FOUND — selectors may be stale'}`,
       );
     }
   };
   pollComposer();
   window.setInterval(pollComposer, 1500);
 
-  console.info('[prompt-firewall] active on', adapter.site);
+  console.info('[deadbolt] active on', adapter.site);
 }
 
 void boot();

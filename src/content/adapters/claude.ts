@@ -103,7 +103,7 @@ export class ClaudeAdapter implements ComposerAdapter {
     // document model rather than just its DOM.
     if (this.selectAll(el) && document.execCommand('insertText', false, text)) {
       if (this.verify(text)) {
-        console.info('[prompt-firewall] composer write: execCommand');
+        console.info('[deadbolt] composer write: execCommand');
         return true;
       }
     }
@@ -118,7 +118,7 @@ export class ClaudeAdapter implements ComposerAdapter {
       new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }),
     );
     if (consumed && this.verify(text)) {
-      console.info('[prompt-firewall] composer write: paste');
+      console.info('[deadbolt] composer write: paste');
       return true;
     }
 
@@ -127,7 +127,7 @@ export class ClaudeAdapter implements ComposerAdapter {
     // the event changed nothing while our own DOM read still saw the old
     // value -- it could only ever produce a false success.
 
-    console.error('[prompt-firewall] all composer write strategies failed');
+    console.error('[deadbolt] all composer write strategies failed');
     return false;
   }
 
@@ -150,7 +150,7 @@ export class ClaudeAdapter implements ComposerAdapter {
 
     const domText = this.readText();
     if (norm(domText) !== norm(expected)) {
-      console.error('[prompt-firewall] composer DOM does not match expected text');
+      console.error('[deadbolt] composer DOM does not match expected text');
       return false;
     }
 
@@ -160,7 +160,7 @@ export class ClaudeAdapter implements ComposerAdapter {
     if (view) {
       const pmText = (el as unknown as { textContent: string }).textContent ?? '';
       if (!norm(pmText).includes(norm(expected).slice(0, 40))) {
-        console.error('[prompt-firewall] ProseMirror document disagrees with the DOM');
+        console.error('[deadbolt] ProseMirror document disagrees with the DOM');
         return false;
       }
     }

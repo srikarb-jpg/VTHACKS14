@@ -427,14 +427,14 @@ export function startRehydration(
         const skip: Element[] = [];
         const composer = adapter.getComposer();
         if (composer) skip.push(composer);
-        const ourHost = document.getElementById('prompt-firewall-root');
+        const ourHost = document.getElementById('deadbolt-root');
         if (ourHost) skip.push(ourHost);
 
         const before = wrapped.length;
         walk(document.body, map, skip);
         if (wrapped.length !== before) {
           console.info(
-            `[prompt-firewall] rehydrate: wrapped ${wrapped.length - before} placeholder(s), ` +
+            `[deadbolt] rehydrate: wrapped ${wrapped.length - before} placeholder(s), ` +
               `${revealedCount()} item(s) on the page`,
           );
           onCountChange?.(revealedCount());

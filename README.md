@@ -1,4 +1,4 @@
-# Prompt Firewall
+# Deadbolt
 
 A browser extension that sits between you and an AI chat site and asks two questions
 before a prompt leaves the machine: does this need to go out at all, and what is it
@@ -16,7 +16,7 @@ npm run dev          # vite dev server, HMR into the content script
 
 Then in Chrome: `chrome://extensions` → enable Developer mode → **Load unpacked** →
 select `dist/`. Open <https://claude.ai> and check the console for
-`[prompt-firewall] active on claude.ai`.
+`[deadbolt] active on claude.ai`.
 
 ```bash
 npm test             # detector suite + the labelled eval set
@@ -140,7 +140,7 @@ Three defences now, in order:
    while protection was paused. Warning about those is how a warning gets ignored.
 
    **It reports to the console only.** The on-page warning was removed on request, so a
-   detected leak now goes to `[prompt-firewall] AUDIT FAILED` and nowhere else. A leak is
+   detected leak now goes to `[deadbolt] AUDIT FAILED` and nowhere else. A leak is
    still detected and still recoverable — but only by someone with DevTools open. Putting
    the panel back is `showLeakWarning` in git history.
 

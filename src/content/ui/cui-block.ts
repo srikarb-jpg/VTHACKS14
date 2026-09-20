@@ -2,7 +2,7 @@
  * The classification hard stop. The ONLY thing in this product that prevents
  * a send.
  *
- * Everything else in Prompt Firewall is advisory by design -- the user always
+ * Everything else in Deadbolt is advisory by design -- the user always
  * gets to send what they want. Marked content is the deliberate exception,
  * and it is exceptional for a reason worth stating on screen: a CUI or
  * export-controlled marking is a legal control on the document as a whole,
@@ -68,7 +68,7 @@ export function showBlockPanel(opts: BlockPanelOptions): void {
     el(
       'div',
       { class: 'muted', style: 'font-size:12.5px;line-height:1.55;border-top:1px solid #2c3039;padding-top:12px;' },
-      'Marked material is controlled as a whole document, so there is no substring we could redact to make it safe. Prompt Firewall does not offer an override for this one case.',
+      'Marked material is controlled as a whole document, so there is no substring we could redact to make it safe. Deadbolt does not offer an override for this one case.',
     ),
     el('div', { style: 'display:flex;justify-content:flex-end;' }, dismiss),
   );

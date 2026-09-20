@@ -157,7 +157,7 @@ describe('popup', () => {
   it('has an honest first-run state', async () => {
     installChrome({ url: 'https://claude.ai/', events: [] });
     await open();
-    expect(text()).toContain('Anything Prompt Firewall redacts shows up here.');
+    expect(text()).toContain('Anything Deadbolt redacts shows up here.');
   });
 
   it('shows the blocked state after a recent blocked send', async () => {

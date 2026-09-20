@@ -40,7 +40,7 @@ function topbar(view: View): HTMLElement {
   return h(
     'header',
     { class: 'topbar' },
-    h('div', { class: 'brand' }, lock(30), h('span', {}, 'Prompt Firewall')),
+    h('div', { class: 'brand' }, lock(30), h('span', {}, 'Deadbolt')),
     h('nav', { class: 'tabs', 'aria-label': 'Sections' }, tab('overview', 'Overview'), tab('settings', 'Settings')),
   );
 }
@@ -95,7 +95,7 @@ async function overview(): Promise<HTMLElement> {
         'div',
         {},
         h('h1', {}, "Here's what ", h('span', { class: 'hl' }, 'stayed private.')),
-        h('p', {}, 'Prompt Firewall counted everything on your device. It never stored what you typed.'),
+        h('p', {}, 'Deadbolt counted everything on your device. It never stored what you typed.'),
       ),
       h('div', { class: 'aside-note' }, arrow(), h('span', {}, 'counted right here,', h('br'), 'not on our servers')),
     ),
@@ -157,7 +157,7 @@ async function fillNer(host: HTMLElement): Promise<void> {
       h(
         'p',
         { class: 'note' },
-        'Check chrome://extensions, then Prompt Firewall, then "Inspect views: offscreen" for the underlying error. Pattern detection is unaffected.',
+        'Check chrome://extensions, then Deadbolt, then "Inspect views: offscreen" for the underlying error. Pattern detection is unaffected.',
       ),
     );
     return;
@@ -239,7 +239,7 @@ async function settingsView(): Promise<HTMLElement> {
       'section',
       { class: 'block' },
       h('h2', {}, 'Protection'),
-      h('p', { class: 'sub' }, 'What Prompt Firewall does while you use a chat site.'),
+      h('p', { class: 'sub' }, 'What Deadbolt does while you use a chat site.'),
       h(
         'div',
         { class: 'card' },
@@ -293,7 +293,7 @@ async function renderView(): Promise<void> {
   // A newer navigation started while this one was loading: drop this result.
   if (id !== renderId) return;
 
-  document.title = `${view === 'settings' ? 'Settings' : 'Overview'} · Prompt Firewall`;
+  document.title = `${view === 'settings' ? 'Settings' : 'Overview'} · Deadbolt`;
   const parts: Node[] = [topbar(view), h('main', { class: 'view' }, content)];
   if (view === 'overview') {
     parts.push(

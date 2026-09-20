@@ -62,6 +62,6 @@ export function showWriteFailure(): void {
  * had worked, because the value it found was already in the conversation from
  * an earlier turn. The audit itself still runs on every redacted send and
  * still reports a genuine leak, now only to the console --
- * `[prompt-firewall] AUDIT FAILED`. If this comes back, it should come back
+ * `[deadbolt] AUDIT FAILED`. If this comes back, it should come back
  * with the before/after comparison in src/worker/audit.ts behind it.
  */
