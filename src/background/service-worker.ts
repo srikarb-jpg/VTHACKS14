@@ -125,7 +125,7 @@ async function handle(msg: ToBackground, tabId: number | undefined): Promise<Fro
       // messaging cost. A cold service worker or a stalled offscreen
       // document shows up as roundTrip >> infer.
       const t0 = performance.now();
-      const r = await askOffscreen({ type: 'ner:detect', texts: msg.texts, threshold: msg.threshold });
+      const r = await askOffscreen({ type: 'ner:detect', texts: msg.texts, threshold: msg.threshold, entities: msg.entities });
       const roundTripMs = performance.now() - t0;
       return r.type === 'ner:spans'
         ? { ...r, roundTripMs }

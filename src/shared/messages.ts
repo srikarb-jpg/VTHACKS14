@@ -65,7 +65,7 @@ export type ToBackground =
   /** Begin the one-time model download. Resolves when it is usable. */
   | { type: 'ner:load' }
   /** Run detection. Returns [] when the model is not loaded. */
-  | { type: 'ner:detect'; texts: string[]; threshold?: number }
+  | { type: 'ner:detect'; texts: string[]; threshold?: number; entities?: string[] }
   | { type: 'ner:selftest' };
 
 export type FromBackground =

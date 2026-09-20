@@ -9,7 +9,7 @@ import type { Finding } from '../../shared/types';
 const EMAIL = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
 
 /** North American and common international shapes, requiring a separator or +. */
-const PHONE = /(?:\+\d{1,3}[ .-]?)?(?:\(\d{3}\)|\b\d{3})[ .-]\d{3}[ .-]\d{4}\b/g;
+const PHONE = /(?:\+\d{1,3}[ .\-\u2010-\u2015\u2212]*)?(?:\(\d{3}\)|\b\d{3})[ .\-\u2010-\u2015\u2212]+\d{3}[ .\-\u2010-\u2015\u2212]+\d{4}\b/g;
 
 const STREET_ADDRESS =
   /\b\d{1,6}\s+(?:[A-Z][A-Za-z.]*\s+){0,3}(?:Street|St|Avenue|Ave|Boulevard|Blvd|Road|Rd|Lane|Ln|Drive|Dr|Court|Ct|Circle|Cir|Way|Terrace|Ter|Place|Pl)\b\.?/g;

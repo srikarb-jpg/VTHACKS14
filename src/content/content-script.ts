@@ -61,6 +61,9 @@ import { splitStable, hash } from '../worker/chunks';
 import { nerSpansToFindings } from '../worker/ner-map';
 import { buildUsageEvent } from '../worker/usage-event';
 import { resolveOverlaps } from '../worker/detectors';
+import { attachFileScanner, scrubAttachment } from './attachments';
+import { showAttachmentStatus } from './ui/attachment-status';
+import { ATTACHMENT_ENTITIES, detectAttachmentNames } from './attachment-ner';
 
 const adapter = new ClaudeAdapter();
 
@@ -641,6 +644,27 @@ async function boot(): Promise<void> {
   // the content script itself injected -- otherwise a messaging bug and a
   // failed injection look identical from the page.
   gate.attach();
+  const detachFiles = attachFileScanner({
+    enabled: () => settings.enabled && settings.mode !== 'watch',
+    status: showAttachmentStatus,
+    remember: (placeholders) => {
+      rememberPlaceholders(placeholders);
+      void sendToBackground({ type: 'vault:put', placeholders });
+      void sendToBackground({ type: 'badge:increment', redactions: placeholders.length, reroutes: 0 });
+    },
+    scrub: (file) => scrubAttachment(file, async (text) => {
+      if (!settings.nerEnabled) return [];
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        return await Promise.race([
+          detectAttachmentNames(text, (texts) => sendToBackground({ type: 'ner:detect', texts, entities: ATTACHMENT_ENTITIES, threshold: 0.45 })),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error('Name scan timed out. Upload blocked; try again.')), 30_000);
+          }),
+        ]);
+      } finally { clearTimeout(timer); }
+    }),
+  });
   showReady('armed');
 
   try {
@@ -720,6 +744,7 @@ async function boot(): Promise<void> {
   });
 
   window.addEventListener('pagehide', () => {
+    detachFiles();
     gate.detach();
     dismissToast();
     dismissChip();
