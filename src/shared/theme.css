@@ -42,6 +42,42 @@
   color-scheme: light;
 }
 
+/*
+ * Dark mode: the same palette after dark, not a grey theme.
+ *
+ * Violet stays the product colour, so the surfaces are violet-blacks rather
+ * than neutral ones, and the ink lightens to #9b83ff because #5b3fd1 on a dark
+ * surface is below the contrast floor. Green is unchanged -- it already reads
+ * on both. Applied from the `theme` setting, never from prefers-color-scheme.
+ */
+:root[data-theme='dark'] {
+  --pf-bg: #16132a;
+  --pf-paper: #211c3b;
+  --pf-wash: #2a2350;
+  --pf-line: #3b3268;
+
+  --pf-text: #f0ecff;
+  --pf-muted: #bdb0ee;
+
+  --pf-ink: #9b83ff;
+  --pf-on-ink: #140f2b;
+  --pf-slate: #8f78e0;
+
+  --pf-nav: #0f0c20;
+  --pf-nav-muted: #c9bdf5;
+  --pf-nav-active: rgba(255, 255, 255, 0.14);
+
+  --pf-safe: #34d399;
+  --pf-safe-wash: #123a2d;
+  --pf-safe-text: #7fe7bd;
+
+  --pf-hold: #f0b429;
+  --pf-hold-wash: #3a2b10;
+  --pf-hold-text: #f6cf78;
+
+  color-scheme: dark;
+}
+
 *,
 *::before,
 *::after {

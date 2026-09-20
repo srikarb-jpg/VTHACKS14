@@ -37,6 +37,7 @@ function installChrome(opts: { url?: string; events: UsageEvent[]; enabled?: boo
       nerEnabled: false,
       autoRedactNames: false,
       nerAutoRedactMinScore: 0.7,
+      theme: 'light',
     },
   };
   const chromeStub = {
@@ -231,6 +232,23 @@ describe('popup', () => {
     watch?.click();
     await vi.waitFor(() => expect(fake.sent.some((m) => m.type === 'settings:set' && m.patch?.mode === 'watch')).toBe(true));
     await vi.waitFor(() => expect(text()).toContain('Never changes your text'));
+  });
+
+  it('the theme button writes the setting and puts it on the document', async () => {
+    const fake = installChrome({ url: 'https://claude.ai/', events: [] });
+    await open();
+    expect(document.documentElement.dataset['theme']).toBe('light');
+
+    const toggle = document.querySelector<HTMLButtonElement>('.theme-btn');
+    expect(toggle?.getAttribute('aria-pressed')).toBe('false');
+    toggle?.click();
+
+    await vi.waitFor(() =>
+      expect(fake.sent.some((m) => m.type === 'settings:set' && m.patch?.theme === 'dark')).toBe(true),
+    );
+    // theme.css keys its dark palette off this attribute.
+    await vi.waitFor(() => expect(document.documentElement.dataset['theme']).toBe('dark'));
+    expect(document.querySelector('.theme-btn')?.getAttribute('aria-pressed')).toBe('true');
   });
 
   it("does not promise strict mode's confirmation step, which is not wired yet", async () => {

@@ -12,6 +12,7 @@ import '../shared/fonts';
 import '../shared/theme.css';
 import './popup.css';
 import { SUPPORTED_HOSTS } from '../shared/config';
+import { applyTheme, nextTheme } from '../shared/apply-theme';
 import { h } from '../shared/dom';
 import type { Child } from '../shared/dom';
 import { icons, lock } from '../shared/icons';
@@ -140,6 +141,28 @@ function lockSwitch(s: State, state: LockState): HTMLElement {
   );
 }
 
+/**
+ * Light or dark, for every surface the extension draws -- this popup, the
+ * dashboard, and the panels on the chat page. It sits in the header rather
+ * than in Settings because it is the one preference people flip on sight.
+ */
+function themeToggle(s: State): HTMLElement {
+  const dark = s.settings.theme === 'dark';
+  return h(
+    'button',
+    {
+      type: 'button',
+      class: 'theme-btn',
+      'data-fid': 'theme',
+      'aria-pressed': dark ? 'true' : 'false',
+      'aria-label': dark ? 'Switch to light mode' : 'Switch to dark mode',
+      title: dark ? 'Light mode' : 'Dark mode',
+      onclick: () => void patchSettings({ theme: nextTheme(s.settings.theme) }),
+    },
+    dark ? icons.sun() : icons.moon(),
+  );
+}
+
 function hero(s: State, blocked: boolean): HTMLElement {
   const on = s.supported && s.settings.enabled;
   let status: string;
@@ -170,6 +193,7 @@ function hero(s: State, blocked: boolean): HTMLElement {
       { class: 'hero-top' },
       h('div', { class: 'site' }, lock(22), h('span', {}, s.host ?? 'This site')),
       on ? h('span', { class: 'mode-label' }, MODE_COPY[s.settings.mode].label) : null,
+      themeToggle(s),
     ),
     h(
       'div',
@@ -316,6 +340,7 @@ function build(s: State): Child[] {
 
 function render(): void {
   if (!state) return;
+  applyTheme(state.settings.theme);
   // Re-rendering replaces every node, so put keyboard focus back afterwards.
   const focusId = document.activeElement instanceof HTMLElement ? document.activeElement.dataset['fid'] : undefined;
   app.replaceChildren(...(build(state).filter(Boolean) as Node[]));

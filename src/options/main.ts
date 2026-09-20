@@ -11,6 +11,7 @@
 import '../shared/fonts';
 import '../shared/theme.css';
 import './options.css';
+import { applyTheme } from '../shared/apply-theme';
 import { h } from '../shared/dom';
 import type { Child } from '../shared/dom';
 import { arrow, lock } from '../shared/icons';
@@ -288,6 +289,9 @@ let renderId = 0;
 async function renderView(): Promise<void> {
   const id = ++renderId;
   const view = currentView();
+  // The theme is chosen in the popup and applies to every surface, so pick it
+  // up here too rather than making the dashboard a second place to set it.
+  void sendToBackground({ type: 'settings:get' }).then((r) => applyTheme(r.settings.theme));
   const content = view === 'settings' ? await settingsView() : await overview();
   // A newer navigation started while this one was loading: drop this result.
   if (id !== renderId) return;
@@ -307,8 +311,12 @@ window.addEventListener('hashchange', () => void renderView());
 // New activity while the dashboard is open. Settings is left alone, so a
 // switch the user just flipped is not redrawn underneath them.
 let refreshTimer: number | undefined;
-chrome.storage.onChanged.addListener((_changes, area) => {
-  if (area !== 'local' || currentView() !== 'overview') return;
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  // The theme follows even on Settings, where nothing else is redrawn.
+  const next = changes['settings_v1']?.newValue as Settings | undefined;
+  if (next?.theme) applyTheme(next.theme);
+  if (currentView() !== 'overview') return;
   window.clearTimeout(refreshTimer);
   refreshTimer = window.setTimeout(() => void renderView(), 250);
 });

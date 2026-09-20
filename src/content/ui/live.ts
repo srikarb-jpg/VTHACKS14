@@ -16,7 +16,7 @@
  * text the user cannot see.
  */
 import type { LiveFinding, ScanStats } from '../../worker/incremental';
-import { el, getLayer, lockLogo } from './shell';
+import { el, getDock, layoutDocks, lockLogo } from './shell';
 
 let onRowPick: ((f: LiveFinding) => void) | null = null;
 
@@ -52,7 +52,7 @@ function ensure(): { body: HTMLElement; details: HTMLElement } {
     details,
   );
 
-  getLayer().append(panel);
+  getDock('left').append(panel);
   return { body, details };
 }
 
@@ -131,6 +131,8 @@ export function renderLive(findings: LiveFinding[], stats: ScanStats, textLength
   }
 
   const { body: b, details: d } = ensure();
+  // The composer is taller than it was a keystroke ago as often as not.
+  layoutDocks();
 
   if (!findings.length) {
     b.replaceChildren(el('div', { class: 'pf-empty' }, 'Nothing sensitive so far.'));

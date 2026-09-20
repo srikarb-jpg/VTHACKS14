@@ -11,6 +11,7 @@ export const DEFAULTS: Settings = {
   nerEnabled: false,
   autoRedactNames: false,
   nerAutoRedactMinScore: 0.7,
+  theme: 'light',
 };
 
 export async function get(): Promise<Settings> {

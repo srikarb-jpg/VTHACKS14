@@ -37,6 +37,8 @@ interface Wrapped {
   width: number;
   /** The CSS font shorthand that width was measured in. */
   font: string;
+  /** The page's text colour where this span sits. */
+  color: string;
   /** Whether the span is currently holding that width open. */
   reserved: boolean;
   /** Last verdict from the ancestor clip walk. See paintable(). */
@@ -83,6 +85,10 @@ function measure(w: Wrapped): void {
   if (ruler === undefined) ruler = document.createElement('canvas').getContext('2d');
   const cs = getComputedStyle(w.span);
   w.font = `${cs.fontStyle} 600 ${cs.fontSize}/1 ${cs.fontFamily}`;
+  // The page's own text colour, read before the token is hidden. The chip is
+  // a wash rather than a solid block, so the value has to read as the page's
+  // text does -- light on a dark site, dark on a light one.
+  w.color = cs.color;
   if (!ruler) {
     w.width = w.value.length * (parseFloat(cs.fontSize) || 14) * 0.62 + CHIP_PAD * 2;
     return;
@@ -165,9 +171,13 @@ function reserve(w: Wrapped, on: boolean): void {
     if (!w.width) measure(w);
     w.span.style.display = 'inline-block';
     w.span.style.minWidth = `${w.width}px`;
+    // Hide the token, keep its box. The chip on top is a translucent wash
+    // now, so without this the placeholder shows through the real value.
+    w.span.style.color = 'transparent';
   } else {
     w.span.style.removeProperty('display');
     w.span.style.removeProperty('min-width');
+    w.span.style.removeProperty('color');
   }
 }
 
@@ -221,12 +231,15 @@ function paint(deep: boolean): void {
     if (!w.chip) {
       const chip = document.createElement('span');
       chip.textContent = w.value;
+      // A violet wash, not a solid block: the value should read as part of
+      // the conversation with our mark on it, rather than as a sticker over
+      // the top of it.
       chip.style.cssText =
         `position:fixed;left:0;top:0;` +
         `display:inline-flex;align-items:center;justify-content:center;` +
         `padding:0 ${CHIP_PAD}px;border-radius:4px;` +
-        `background:#5b3fd1;color:#fff;box-shadow:0 0 0 1px rgba(255,255,255,.3);` +
-        `font:${w.font};white-space:nowrap;pointer-events:none;`;
+        `background:rgba(91,63,209,.30);box-shadow:inset 0 0 0 1px rgba(122,95,236,.55);` +
+        `color:${w.color};font:${w.font};white-space:nowrap;pointer-events:none;`;
       w.chip = chip;
       host.append(chip);
     }
@@ -331,6 +344,7 @@ function wrap(textNode: Text, placeholders: Map<string, Placeholder>): void {
       at: '',
       width: 0,
       font: '',
+      color: '',
       reserved: false,
       clipped: false,
     };

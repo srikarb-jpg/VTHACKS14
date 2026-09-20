@@ -5,6 +5,7 @@
  * leak out and break the site during a demo.
  */
 import lockInline from '../../assets/lock-sm.png?inline';
+import type { Theme } from '../../shared/types';
 
 const HOST_ID = 'prompt-firewall-root';
 
@@ -22,7 +23,7 @@ const BASE_CSS = `
   .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
   button.pf {
-    font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 7px;
+    font: inherit; font-size: .98em; padding: 6px 12px; border-radius: 7px;
     border: 1px solid #343945; background: #23262e; color: #e8eaed; cursor: pointer;
   }
   button.pf:hover { background: #2c3039; }
@@ -50,13 +51,47 @@ const BASE_CSS = `
     --pf-font: "Hanken Grotesk Variable", "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI Variable", "Segoe UI", sans-serif;
     --pf-mono: ui-monospace, SFMono-Regular, "Cascadia Mono", Menlo, Consolas, monospace;
   }
+  /*
+   * Dark mode, from the "theme" setting -- the same values as the popup's
+   * dark palette in src/shared/theme.css. Duplicated rather than imported
+   * because a shadow root cannot reach the page's stylesheets, and we would
+   * not want the page's either. Keep the two in step.
+   */
+  :host([data-pf-theme='dark']) {
+    --pf-bg: #16132a; --pf-paper: #211c3b; --pf-wash: #2a2350; --pf-line: #3b3268;
+    --pf-text: #f0ecff; --pf-muted: #bdb0ee;
+    --pf-ink: #9b83ff; --pf-on-ink: #140f2b; --pf-slate: #8f78e0; --pf-spark: #34d399;
+    --pf-safe-text: #7fe7bd;
+  }
   [hidden] { display: none !important; }
+
+  /*
+   * Corner docks. Every floating panel used to place itself, so the toast and
+   * the reveal toggle both claimed the bottom right and sat on top of each
+   * other. A panel now joins a dock and the dock does the stacking; \`order\`
+   * fixes the sequence so it does not depend on which appeared first.
+   */
+  /*
+   * The dock owns the type size for everything in it, and every panel sizes
+   * its text in em. A narrow gutter then reads as smaller type rather than as
+   * a squeezed, wrapped, truncated version of the wide one.
+   */
+  .pf-dock {
+    position: absolute; bottom: 24px; display: flex; flex-direction: column;
+    gap: 10px; max-width: calc(100vw - 32px); pointer-events: none; font-size: 13px;
+  }
+  .pf-dock > * { pointer-events: auto; }
+  .pf-dock.left { left: 16px; align-items: flex-start; }
+  .pf-dock.right { right: 16px; align-items: flex-end; }
 
   .pf-card {
     background: var(--pf-paper); color: var(--pf-text);
     border: 1px solid var(--pf-line); border-radius: 16px;
     box-shadow: 0 18px 44px rgba(62,42,156,.30), 0 2px 8px rgba(30,18,71,.14);
-    font: 13px/1.4 var(--pf-font);
+    font: 1em/1.4 var(--pf-font);
+  }
+  :host([data-pf-theme='dark']) .pf-card {
+    box-shadow: 0 18px 44px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.4);
   }
   .pf-card * { font-family: var(--pf-font); }
   .pf-card .pf-mono, .pf-card .pf-mono * { font-family: var(--pf-mono); }
@@ -64,13 +99,13 @@ const BASE_CSS = `
 
   button.pfl {
     display: inline-flex; align-items: center; gap: 7px;
-    font: 600 13px var(--pf-font); padding: 7px 14px; border-radius: 9px;
+    font: 600 1em var(--pf-font); padding: 7px 14px; border-radius: 9px;
     border: 1px solid var(--pf-line); background: var(--pf-wash); color: var(--pf-text); cursor: pointer;
   }
   button.pfl:hover { background: var(--pf-line); }
   button.pfl.primary { background: var(--pf-ink); border-color: var(--pf-ink); color: var(--pf-on-ink); }
   button.pfl.primary:hover { background: #4a30b8; }
-  button.pfl.mini { padding: 3px 10px; font-size: 12px; }
+  button.pfl.mini { padding: 3px 10px; font-size: .92em; }
   button.pfl:focus-visible, .pf-chip:focus-visible, .pf-row.clickable:focus-visible {
     outline: 2px solid var(--pf-ink); outline-offset: 2px;
   }
@@ -90,26 +125,32 @@ const BASE_CSS = `
 
   /* ---- live scan ---- */
   .pf-live {
-    position: absolute; left: 16px; bottom: 52px; width: 360px; max-height: 46vh; overflow: auto;
+    width: 360px; max-width: 100%; max-height: 46vh; overflow: auto;
     padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;
   }
-  .pf-head { display: flex; align-items: center; gap: 8px; }
-  .pf-head img { display: block; flex: none; }
-  .pf-title { flex: 1; font-weight: 800; font-size: 14px; }
+  .pf-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  /* The lock scales with the type so the header stays on one line in a
+     narrow gutter; 2em is its 26px size at the full type scale. */
+  .pf-head img { display: block; flex: none; width: 2em; height: 2em; }
+  /* Keeps room for the title, so in a narrow gutter the Details button drops
+     to the next line instead of squeezing the title into a column of words. */
+  .pf-title { flex: 1 1 7em; min-width: 7em; font-weight: 800; font-size: 1.06em; }
   .pf-rows { display: flex; flex-direction: column; gap: 2px; }
-  .pf-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 9px; }
+  /* In a narrow gutter the status drops to its own line rather than squeezing
+     the value it belongs to down to nothing. */
+  .pf-row { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; padding: 6px 8px; border-radius: 9px; }
   .pf-row.prov { opacity: .6; }
   .pf-row.clickable { cursor: pointer; }
   .pf-row.clickable:hover { background: var(--pf-wash); }
-  .pf-main { flex: 1; min-width: 0; }
-  .pf-val { font: 12.5px var(--pf-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .pf-sub { font-size: 11px; color: var(--pf-muted); }
-  .pf-state { flex: none; font-size: 11.5px; color: var(--pf-muted); }
+  .pf-main { flex: 1; min-width: 8em; }
+  .pf-val { font: .96em var(--pf-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pf-sub { font-size: .85em; color: var(--pf-muted); }
+  .pf-state { flex: none; margin-left: auto; font-size: .88em; color: var(--pf-muted); }
   .pf-state.ok { color: var(--pf-safe-text); font-weight: 700; }
   .pf-empty { padding: 4px 8px; color: var(--pf-muted); }
   .pf-details {
     padding-top: 8px; border-top: 1px solid var(--pf-line);
-    font-size: 11.5px; line-height: 1.6; color: var(--pf-muted); white-space: pre-line;
+    font-size: .88em; line-height: 1.6; color: var(--pf-muted); white-space: pre-line;
   }
 
   /* ---- diff modal ---- */
@@ -167,7 +208,7 @@ const BASE_CSS = `
   }
 
   /* ---- small status pieces ---- */
-  .pf-status { padding: 9px 12px; display: flex; align-items: center; gap: 9px; font-size: 12.5px; }
+  .pf-status { padding: 9px 12px; display: flex; align-items: center; gap: 9px; font-size: .96em; }
   .pf-status img { display: block; }
   .pf-bob { animation: pf-bob 1.1s ease-in-out infinite; transform-origin: 50% 100%; }
   @keyframes pf-bob { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-3px) rotate(-5deg); } }
@@ -177,6 +218,18 @@ const BASE_CSS = `
 `;
 
 let layer: HTMLDivElement | null = null;
+let shadowHost: HTMLElement | null = null;
+let theme: Theme = 'light';
+
+/**
+ * Light or dark for the panels on the page, from the same setting as the
+ * popup. Safe to call before any UI exists: the host picks it up when it is
+ * created.
+ */
+export function setOverlayTheme(next: Theme): void {
+  theme = next;
+  shadowHost?.setAttribute('data-pf-theme', theme);
+}
 
 /** Returns the shared overlay layer, creating the shadow host on first call. */
 export function getLayer(): HTMLDivElement {
@@ -187,6 +240,8 @@ export function getLayer(): HTMLDivElement {
 
   const host = document.createElement('div');
   host.id = HOST_ID;
+  host.setAttribute('data-pf-theme', theme);
+  shadowHost = host;
   // CLOSED, not open. With mode:'open' the host page can reach our UI via
   // host.shadowRoot and read everything in it -- including the diff panel,
   // which renders the user's ORIGINAL unredacted text side by side. Closed
@@ -203,6 +258,260 @@ export function getLayer(): HTMLDivElement {
   root.append(layer);
   document.body.append(host);
   return layer;
+}
+
+/**
+ * The two docks, and where they sit relative to the composer.
+ *
+ * A chat site puts the composer in the middle of the bottom of the window and
+ * leaves a wide empty gutter either side of it. That gutter is where our
+ * panels belong: beside the composer, bottom-aligned with it, so they are
+ * next to what the user is doing without covering it or pushing up into the
+ * conversation. The panels are sized to the gutter they are given.
+ *
+ * When the window is too narrow for that -- a small laptop, a split screen, a
+ * site whose composer runs the full width -- there is no gutter to sit in, and
+ * the docks go back above the composer.
+ */
+export type Side = 'left' | 'right';
+
+/** Clearance from the window edge, and from the composer. */
+const EDGE = 16;
+const GAP = 16;
+/** A panel thinner than this cannot show a finding, so the gutter is not used. */
+const MIN_GUTTER = 190;
+/** And no wider than the panels want to be, however much room there is. */
+const MAX_DOCK = 360;
+
+const docks = new Map<Side, HTMLElement>();
+let anchorFn: (() => Element | null) | null = null;
+const observed = new Set<Element>();
+let ro: ResizeObserver | null = null;
+
+/**
+ * Resolving the composer is a querySelector chain, and the follow loop below
+ * runs per frame, so hold on to the element until it leaves the document.
+ */
+let cachedAnchor: Element | null = null;
+
+function resolveAnchor(): Element | null {
+  if (cachedAnchor?.isConnected) return cachedAnchor;
+  cachedAnchor = anchorFn?.() ?? null;
+  return cachedAnchor;
+}
+
+/**
+ * Follow the layout for a while, a frame at a time.
+ *
+ * A ResizeObserver is not enough, and this is the second time that has caught
+ * us out. The composer has a max-width: opening the sidebar narrows the space
+ * around it, but the composer itself keeps its size and simply MOVES. Nothing
+ * resizes, so nothing fires, and the panels only caught up on the 1.5s
+ * composer poll -- which is what "super slow" looked like.
+ *
+ * There is no observer for "an element moved", so instead we follow for a
+ * beat after anything that could move it: a click, a keystroke, a CSS
+ * transition starting or ending. layoutDocks itself is cheap and writes
+ * nothing when the numbers have not changed, so the loop costs a rect read
+ * per frame and stops as soon as the animation is over.
+ */
+let follow = 0;
+let followUntil = 0;
+
+export function nudgeDocks(ms = 700): void {
+  followUntil = Math.max(followUntil, performance.now() + ms);
+  if (follow) return;
+  const step = (): void => {
+    follow = 0;
+    layoutDocks();
+    if (performance.now() < followUntil) follow = requestAnimationFrame(step);
+  };
+  follow = requestAnimationFrame(step);
+}
+
+let nudgesInstalled = false;
+
+function installNudges(): void {
+  if (nudgesInstalled) return;
+  nudgesInstalled = true;
+  const opts = { capture: true, passive: true } as const;
+  // A sidebar opens because someone clicked or pressed a key, and it slides
+  // there on a transition. Between them these cover every move we have seen.
+  for (const type of ['click', 'keydown', 'transitionstart', 'transitionend', 'animationend']) {
+    document.addEventListener(type, () => nudgeDocks(), opts);
+  }
+  window.addEventListener('resize', () => nudgeDocks(300), { passive: true });
+}
+
+/**
+ * Watch exactly these elements for a size change, and nothing else.
+ *
+ * Both matter. The composer grows as the user types. The content area around
+ * it changes width when the sidebar is opened or collapsed -- and that is the
+ * one the panels were slow to notice, because without it nothing reported the
+ * change until the next scroll or the 1.5s composer poll. A ResizeObserver on
+ * the content area fires on every frame of the sidebar's animation instead.
+ */
+function watch(nodes: (Element | null)[]): void {
+  const want = new Set(nodes.filter((n): n is Element => n !== null));
+  if (want.size === observed.size && [...want].every((n) => observed.has(n))) return;
+  // Nudge rather than lay out once: a size change is usually the first frame
+  // of an animation, and the rest of it is movement we would otherwise miss.
+  ro ??= new ResizeObserver(() => nudgeDocks(400));
+  for (const node of observed) if (!want.has(node)) ro.unobserve(node);
+  for (const node of want) if (!observed.has(node)) ro.observe(node);
+  observed.clear();
+  for (const node of want) observed.add(node);
+}
+
+/**
+ * Type size for a dock of this width.
+ *
+ * A narrow gutter shrinks the type rather than the content: squeezing a panel
+ * to 190px without this wraps every row onto three lines and truncates the
+ * value, which is the part the user is there to read.
+ */
+function dockFont(width: number): number {
+  const t = Math.max(0, Math.min(1, (width - MIN_GUTTER) / (MAX_DOCK - MIN_GUTTER)));
+  return Math.round((10.8 + t * 2.2) * 10) / 10;
+}
+
+export function getDock(side: Side): HTMLElement {
+  const found = docks.get(side);
+  if (found?.isConnected) return found;
+  const dock = document.createElement('div');
+  dock.className = `pf-dock ${side}`;
+  docks.set(side, dock);
+  getLayer().append(dock);
+  installNudges();
+  layoutDocks();
+  return dock;
+}
+
+/** Tells the docks what to sit beside. The composer, in practice. */
+export function setOverlayAnchor(fn: () => Element | null): void {
+  anchorFn = fn;
+  cachedAnchor = null;
+  layoutKey = '';
+  installNudges();
+  layoutDocks();
+}
+
+/**
+ * The composer's visible frame, starting from the editable node.
+ *
+ * Which element draws the rounded box around the composer is a site's private
+ * business and changes with a redesign. The editable node is inset within it
+ * by its padding, and the bar around it usually runs the full width of the
+ * page -- measure either one and the gutters come out wrong. So climb from the
+ * editable node while each ancestor still hugs it, and stop at the first one
+ * that is the page rather than the composer.
+ *
+ * Hugging means three things, and all of them are needed. A frame is only a
+ * little wider than what it wraps -- its own padding. It is not much taller
+ * (a page column is). And it does not span the window (a bar does). Each rule
+ * is here because dropping it broke a real layout: without the relative width
+ * rule the search walked out to claude.ai's bottom bar, which is only the
+ * height of the disclaimer line taller than the composer, and reported no
+ * gutters at all; without the window-span rule a narrow window did the same.
+ */
+interface Anchor {
+  frame: DOMRect;
+  /** The content area's element, watched so a sidebar opening is not news. */
+  outer: Element | null;
+  left: number;
+  right: number;
+}
+
+function anchorBox(node: Element): Anchor {
+  let box = node.getBoundingClientRect();
+  let outer: Element | null = null;
+  let parent = node.parentElement;
+  for (let depth = 0; parent && depth < 6 && parent !== document.body; depth++) {
+    const r = parent.getBoundingClientRect();
+    // The ancestor we stop at is the composer's container -- the content area.
+    // Its edges, not the window's, are how far our panels may spread: on
+    // claude.ai it starts where the sidebar ends, so a panel that respects it
+    // cannot be drawn over the sidebar.
+    if (r.width > box.width + 80 || r.height > box.height + 48 || r.width > window.innerWidth * 0.92) {
+      outer = parent;
+      break;
+    }
+    if (r.width >= box.width) box = r;
+    parent = parent.parentElement;
+  }
+  const bounds = outer?.getBoundingClientRect();
+  return {
+    frame: box,
+    outer,
+    left: Math.max(0, bounds?.left ?? 0),
+    right: Math.min(window.innerWidth, bounds?.right ?? window.innerWidth),
+  };
+}
+
+/** The last geometry we laid out for, so a frame that changed nothing writes nothing. */
+let layoutKey = '';
+
+export function layoutDocks(): void {
+  const anchor = resolveAnchor();
+  const found = anchor ? anchorBox(anchor) : null;
+
+  const key = found
+    ? `${Math.round(found.frame.left)},${Math.round(found.frame.right)},${Math.round(found.frame.top)},` +
+      `${Math.round(found.left)},${Math.round(found.right)},${window.innerWidth},${window.innerHeight},${docks.size}`
+    : `none,${window.innerWidth},${window.innerHeight},${docks.size}`;
+  if (key === layoutKey) return;
+  layoutKey = key;
+
+  watch([anchor, found?.outer ?? null]);
+
+  const rect = found?.frame;
+  const known = found !== null && rect !== undefined && rect.height > 0 && rect.top > 80;
+
+  // Above the composer: the fallback, and what we use with no composer at all.
+  // Never give up more than half the window to it, or a composer someone has
+  // dragged tall would push the panels off the top of the screen.
+  const above = known
+    ? Math.min(Math.round(window.innerHeight - rect.top + GAP), Math.round(window.innerHeight * 0.5))
+    : 24;
+  // Beside it: down in the corner, level with the bottom of the window rather
+  // than the bottom of the composer. A site puts a disclaimer line under the
+  // composer, and sitting level with the composer's box leaves our panels
+  // floating above that empty strip instead of filling the corner.
+  const beside = EDGE;
+
+  // Measured from the content area's edges, not the window's.
+  const gutters: Record<Side, number> = {
+    left: known ? rect.left - found.left - EDGE - GAP : 0,
+    right: known ? found.right - rect.right - EDGE - GAP : 0,
+  };
+
+  for (const [side, dock] of docks) {
+    const gutter = Math.floor(gutters[side]);
+    if (found && gutter >= MIN_GUTTER) {
+      // Pinned to the outside edge of the gutter, not to the composer. Both
+      // edges move when the sidebar opens, but pinning here means the panel
+      // stays put against that edge and only its width changes -- anchoring
+      // it to the composer instead slid the whole panel across the screen.
+      const width = Math.min(gutter, MAX_DOCK);
+      dock.style.width = `${width}px`;
+      dock.style.bottom = `${beside}px`;
+      dock.style.fontSize = `${dockFont(width)}px`;
+      if (side === 'left') {
+        dock.style.right = 'auto';
+        dock.style.left = `${Math.round(found.left + EDGE)}px`;
+        dock.style.alignItems = 'flex-start';
+      } else {
+        dock.style.left = 'auto';
+        dock.style.right = `${Math.round(window.innerWidth - found.right + EDGE)}px`;
+        dock.style.alignItems = 'flex-end';
+      }
+    } else {
+      dock.style.bottom = `${above}px`;
+      dock.style.fontSize = `${dockFont(MAX_DOCK)}px`;
+      for (const prop of ['width', 'left', 'right', 'align-items']) dock.style.removeProperty(prop);
+    }
+  }
 }
 
 /** Convenience element builder. Keeps the panels readable. */

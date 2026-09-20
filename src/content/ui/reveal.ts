@@ -6,7 +6,7 @@
  * [PERSON_1]; and one click puts "Amanda Britfield" back on screen without
  * anything leaving the device, because the mapping never left it either.
  */
-import { el, getLayer, lockLogo } from './shell';
+import { el, getDock, lockLogo } from './shell';
 
 let bar: HTMLElement | null = null;
 let label: Text | null = null;
@@ -50,8 +50,9 @@ export function showRevealToggle(count: number): void {
       onToggle?.(revealed);
       paint();
     });
-    bar = el('div', { style: 'position:absolute;right:24px;bottom:84px;' }, btn);
-    getLayer().append(bar);
+    // order 1: above the toast, which comes and goes underneath it.
+    bar = el('div', { style: 'order:1;' }, btn);
+    getDock('right').append(bar);
   }
   paint();
 }
@@ -90,12 +91,12 @@ export function showPending(text: string): void {
     {
       class: 'pf-card pf-status',
       role: 'status',
-      style: 'position:absolute;right:24px;bottom:24px;',
+      style: 'order:2;',
     },
     lockLogo(24, 'pf-bob'),
     el('span', { class: 'pf-muted' }, text),
   );
-  getLayer().append(pending);
+  getDock('right').append(pending);
 }
 
 export function hidePending(): void {

@@ -6,7 +6,7 @@
  * the original text to the composer and deliberately does not resend.
  */
 import type { ToastOptions } from '../../shared/messages';
-import { el, getLayer } from './shell';
+import { el, getDock, lockLogo } from './shell';
 
 const AUTO_DISMISS_MS = 9000;
 
@@ -22,24 +22,33 @@ export function showToast(opts: ToastOptions): () => void {
   }
   const summary = [...byLabel.entries()].map(([k, n]) => `${n} ${k}${n > 1 ? 's' : ''}`).join(', ');
 
-  const undo = el('button', { class: 'pf' }, 'Undo');
-  const diff = el('button', { class: 'pf primary' }, 'See what changed');
+  const undo = el('button', { class: 'pfl', type: 'button' }, 'Undo');
+  const diff = el('button', { class: 'pfl primary', type: 'button' }, 'See what changed');
 
   const card = el(
     'div',
     {
-      class: 'card',
+      // pf-card and pfl, the same violet-and-green surface as the live scan
+      // and the diff. The toast is the thing people see most, so it is the
+      // last place that should look like a different product.
+      class: 'pf-card',
+      // order 3: the toast sits at the bottom of the right dock, closest to
+      // the composer, because it is about the message just sent.
       style:
-        'position:absolute;right:24px;bottom:24px;width:340px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;',
+        'order:3;width:340px;max-width:100%;padding:14px 16px;display:flex;flex-direction:column;gap:10px;',
     },
+    // Sizes are in em: the dock sets the type size from the room it has, so a
+    // narrow gutter makes this smaller rather than squeezing it.
     el(
       'div',
-      { style: 'display:flex;align-items:baseline;gap:8px;' },
-      el('strong', { style: 'font-size:14px;' }, `${opts.placeholders.length} redacted`),
-      el('span', { class: 'muted', style: 'font-size:12px;' }, 'sent safely'),
+      { style: 'display:flex;align-items:center;gap:9px;flex-wrap:wrap;' },
+      lockLogo(20),
+      el('strong', { style: 'font-size:1.08em;' }, `${opts.placeholders.length} redacted`),
+      el('span', { class: 'pf-muted', style: 'font-size:.92em;' }, 'sent safely'),
     ),
-    el('div', { class: 'muted', style: 'font-size:12.5px;line-height:1.45;' }, summary),
-    el('div', { style: 'display:flex;gap:8px;justify-content:flex-end;' }, undo, diff),
+    el('div', { class: 'pf-muted', style: 'font-size:.96em;line-height:1.45;' }, summary),
+    // Wraps: in a narrow gutter the two buttons do not fit on one line.
+    el('div', { style: 'display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;' }, undo, diff),
   );
 
   undo.addEventListener('click', () => {
@@ -48,7 +57,7 @@ export function showToast(opts: ToastOptions): () => void {
   });
   diff.addEventListener('click', () => opts.onOpenDiff());
 
-  getLayer().append(card);
+  getDock('right').append(card);
   current = card;
   const timer = window.setTimeout(dismissToast, AUTO_DISMISS_MS);
 

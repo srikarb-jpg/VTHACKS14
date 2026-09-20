@@ -5,16 +5,75 @@
     <title>reveal lab</title>
     <style>
       body { margin: 0; background: #1b1b1b; color: #ececec; font: 17px/1.65 Georgia, serif; }
-      .thread { max-width: 720px; margin: 0 auto; padding: 40px 20px 220px; }
+      .thread { max-width: 720px; margin: 0 auto; padding: 40px 20px 260px; }
       .msg { margin: 26px 0; }
       .user { background: #2c2c2c; border-radius: 14px; padding: 10px 16px; margin-left: auto; width: max-content; max-width: 70%; }
       /* A screen-reader copy of the same message: clipped to a pixel, but its
          text is in the DOM and it used to get a chip painted on it. */
       .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+      /*
+       * Stands in for the site's composer, nested the way a real one is: a
+       * full-width bar, a centred frame that draws the box, and the editable
+       * node inset inside it. Our panels have to find the frame, not the bar
+       * (no gutters) and not the editable node (gutters too wide).
+       */
+      .composer-bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 0 20px 8px; }
+      /*
+       * max-width, not width: with the sidebar open the composer MOVES but
+       * does not change size, so a ResizeObserver on it never fires. That is
+       * why the panels used to take up to a poll interval to catch up.
+       */
+      .composer-frame {
+        max-width: 768px; margin: 0 auto; padding: 10px;
+        background: #262626; border: 1px solid #3a3a3a; border-radius: 16px;
+      }
+      #composer {
+        min-height: 68px; padding: 8px 10px; outline: none;
+        font: 15px/1.6 ui-sans-serif, system-ui, sans-serif; color: #ececec;
+      }
+      /* The disclaimer under the composer: it makes the bar taller than the
+         frame by less than a panel's height, which is what let the frame
+         search walk out to the bar and lose the gutters. */
+      .disclaimer { padding: 8px 0 6px; text-align: center; font: 12px ui-sans-serif, system-ui, sans-serif; color: #8a8a8a; }
+      /* ?sidebar adds the site's left rail, which insets the bar. */
+      .sidebar {
+        position: fixed; left: 0; top: 0; bottom: 0; width: 0; overflow: hidden;
+        background: #202020; border-right: 1px solid #333; transition: width .3s ease;
+      }
+      /*
+       * The bar is translated rather than inset, so that opening the sidebar
+       * resizes NOTHING -- not the bar, not the frame, not the editable node.
+       * Everything simply moves. This is the case a ResizeObserver cannot see.
+       */
+      .composer-bar, .thread, .bar { transition: transform .3s ease; }
+      body.with-sidebar .composer-bar,
+      body.with-sidebar .thread,
+      body.with-sidebar .bar { transform: translateX(260px); }
+      body.with-sidebar .sidebar { width: 260px; }
+      body.with-sidebar .composer-bar { right: 260px; }
+      .bar { position: fixed; left: 16px; top: 16px; display: flex; gap: 8px; }
+      .bar button {
+        font: 13px ui-sans-serif, system-ui, sans-serif; padding: 6px 12px; border-radius: 8px;
+        border: 1px solid #3a3a3a; background: #262626; color: #ececec; cursor: pointer;
+      }
     </style>
   </head>
   <body>
+    <div class="bar">
+      <button data-show="toast">Toast</button>
+      <button data-show="pending">Pending</button>
+      <button data-show="live">Live scan</button>
+      <button id="toggle-sidebar">Sidebar</button>
+      <button id="toggle-theme">Theme</button>
+    </div>
     <div class="thread" id="thread"></div>
+    <div class="sidebar"></div>
+    <div class="composer-bar">
+      <div class="composer-frame">
+        <div id="composer" contenteditable="true" spellcheck="false">Type here to grow the composer and watch the panels follow it.</div>
+      </div>
+      <div class="disclaimer">Claude is AI and can make mistakes. Please double-check responses.</div>
+    </div>
     <script type="module" src="./reveal-lab.ts"></script>
   </body>
 </html>

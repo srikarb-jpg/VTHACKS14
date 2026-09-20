@@ -29,9 +29,11 @@ useful for building UI in parallel. With the dev server running, open
 <http://localhost:5173/dev/harness.html>. The toolbar popup and the dashboard have a preview too,
 against a fake `chrome` API: <http://localhost:5173/dev/preview.html?page=popup> (also
 `&site=other`, `&enabled=0`, `&blocked=1`, `&empty=1`, or `?page=dashboard` / `?page=settings`).
-<http://localhost:5173/dev/reveal-lab.html> is a fake thread for the reveal overlay: a message
-duplicated into a screen-reader-only box and a reply that streams in, which is the layout that
-put revealed values in the wrong place.
+<http://localhost:5173/dev/reveal-lab.html> is a fake thread for the overlays that have to live
+with the site's layout: a message duplicated into a screen-reader-only box, a reply that streams
+in, and a composer pinned to the bottom. Between them they reproduce every placement bug we have
+had — values painted on a hidden copy, values drifting away from their text, and panels sitting
+on top of the composer or each other.
 
 ## Layout
 
@@ -91,6 +93,32 @@ Stated here so nobody has to discover them at 3am, and so we can answer honestly
   opening them makes no request to a third party. Do not swap in a Google Fonts `<link>`.
 - **Design tokens live in `src/shared/theme.css`** (violet and green). The badge colour in
   `src/background/badge.ts` is duplicated there because a service worker cannot read CSS.
+- **Floating panels do not place themselves.** They join a dock (`getDock` in
+  `src/content/ui/shell.ts`), which stacks them and puts them in the bottom corner of the
+  gutter beside the composer, sized to the room available. The gutter is measured between
+  the composer's frame and the edges of the content area around it — not the window, or the
+  panel is drawn over the site's sidebar. Under ~190px of gutter there is nothing usable
+  there and they go above the composer instead. A panel that sets its own `bottom` will
+  eventually land on another one.
+- **A `ResizeObserver` is not enough to keep the docks in place.** The composer has a
+  max-width, so opening the sidebar moves it without resizing it, and nothing fires. There is
+  no observer for "an element moved", so `nudgeDocks` follows the layout for ~700ms after a
+  click, a keystroke or a CSS transition. It measures per frame and writes only when the
+  numbers change, and it stops when nothing is moving (verified: 0 animation frames while
+  idle).
+- **Panels in a dock size their text in `em`, never `px`.** The dock sets the type size from
+  the width it was given (10.8–13px), so a narrow gutter reads as smaller type instead of a
+  squeezed, wrapped, truncated version of the wide one. A `px` font size in a docked panel
+  opts out of that.
+- **The routing chip, block panel and alerts are still the old dark style.** Everything else —
+  popup, dashboard, live scan, diff, toast, reveal toggle, pending indicator — is on the
+  violet-and-green design.
+- **Light and dark come from the `theme` setting, never `prefers-color-scheme`.** The chat
+  site has its own switch, and following the OS would put a bright white panel over a dark
+  conversation. The toggle is in the popup header and applies to every surface. The dark
+  palette exists twice — `src/shared/theme.css` for the popup and dashboard, and again in
+  `shell.ts` for the overlays, because a shadow root cannot reach the page's stylesheets.
+  Keep the two in step.
 
 ## The one thing that must not break
 
@@ -106,7 +134,14 @@ Three defences now, in order:
 2. `verifyCommitted` waits two animation frames and re-checks, including ProseMirror's
    own state. **Nothing is sent until this passes**, and the toast is shown only after.
 3. `auditSentMessage` reads the page back after sending and looks for any value we
-   believed we replaced. It cannot prevent a leak, only detect one — but a detected leak
-   is recoverable and a silent one is not.
+   believed we replaced. It compares the page before and after the send
+   (`src/worker/audit.ts`), because the same value is often already in the conversation
+   from an earlier turn — sent before the extension was on, restored with Undo, or typed
+   while protection was paused. Warning about those is how a warning gets ignored.
+
+   **It reports to the console only.** The on-page warning was removed on request, so a
+   detected leak now goes to `[prompt-firewall] AUDIT FAILED` and nowhere else. A leak is
+   still detected and still recoverable — but only by someone with DevTools open. Putting
+   the panel back is `showLeakWarning` in git history.
 
 Never reorder these so that the toast or the send precedes verification.

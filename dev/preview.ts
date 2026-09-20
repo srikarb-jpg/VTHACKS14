@@ -6,6 +6,7 @@
  *   preview.html?page=popup&enabled=0         paused
  *   preview.html?page=popup&blocked=1         a send was just blocked
  *   preview.html?page=popup&empty=1           first run, no activity yet
+ *   preview.html?page=popup&theme=dark        dark mode
  *   preview.html?page=dashboard
  *   preview.html?page=settings
  *
@@ -63,6 +64,7 @@ if (q.get('blocked')) events = [...events, row({ timestamp: now - 60_000, blocke
 installFakeChrome({
   url: q.get('site') === 'other' ? 'https://example.com/docs' : 'https://claude.ai/chat/abc',
   enabled: q.get('enabled') !== '0',
+  theme: q.get('theme') === 'dark' ? 'dark' : 'light',
   events,
 });
 

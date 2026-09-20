@@ -59,4 +59,10 @@ export const icons = {
   play: () => stroke('<path d="M8 5v14l11-7z" stroke-linejoin="round"/>'),
   settings: () =>
     stroke('<path d="M4 8h9M19 8h1M4 16h1M11 16h9"/><circle cx="16" cy="8" r="2.2"/><circle cx="8" cy="16" r="2.2"/>'),
+  sun: () =>
+    stroke(
+      '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2' +
+        'M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M18.8 5.2l-1.4 1.4M6.6 17.4l-1.4 1.4"/>',
+    ),
+  moon: () => stroke('<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z" stroke-linejoin="round"/>'),
 };

@@ -1,12 +1,11 @@
 /**
- * Failure surfaces.
+ * Failure surface.
  *
- * Both of these report that the extension did not do what it claimed. They
- * are deliberately loud and deliberately not auto-dismissing: a silent
- * failure here means the user believes their data was scrubbed when it was
- * not, and that belief is more dangerous than no extension at all.
+ * This reports that the extension did not do what it claimed. It is
+ * deliberately loud and deliberately not auto-dismissing: a silent failure
+ * here means the user believes their data was scrubbed when it was not, and
+ * that belief is more dangerous than no extension at all.
  */
-import type { Placeholder } from '../../shared/types';
 import { el, getLayer } from './shell';
 
 let current: HTMLElement | null = null;
@@ -56,29 +55,13 @@ export function showWriteFailure(): void {
   );
 }
 
-/** The audit found a value on the page that we believed we had replaced. */
-export function showLeakWarning(leaked: Placeholder[]): void {
-  panel(
-    'Redaction may have failed',
-    [
-      el(
-        'div',
-        { style: 'font-size:13.5px;line-height:1.55;' },
-        `After sending, ${leaked.length} value${leaked.length > 1 ? 's were' : ' was'} still ` +
-          'visible on this page that should have been replaced. Treat this message as if the ' +
-          'data was sent.',
-      ),
-      el(
-        'ul',
-        { style: 'margin:0;padding-left:18px;font-size:12.5px;' },
-        ...leaked.map((p) => el('li', {}, `${p.token} (${p.kind})`)),
-      ),
-      el(
-        'div',
-        { class: 'muted', style: 'font-size:12.5px;line-height:1.55;' },
-        'Delete the message in the chat, and rotate any credential involved.',
-      ),
-    ],
-    '#ff5d5d',
-  );
-}
+/*
+ * The leak warning panel used to live here.
+ *
+ * Removed at the user's request: it was interrupting the page on a send that
+ * had worked, because the value it found was already in the conversation from
+ * an earlier turn. The audit itself still runs on every redacted send and
+ * still reports a genuine leak, now only to the console --
+ * `[prompt-firewall] AUDIT FAILED`. If this comes back, it should come back
+ * with the before/after comparison in src/worker/audit.ts behind it.
+ */

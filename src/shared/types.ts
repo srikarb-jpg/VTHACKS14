@@ -99,6 +99,8 @@ export interface RouteDecision {
 
 export type Mode = 'watch' | 'autopilot' | 'strict';
 
+export type Theme = 'light' | 'dark';
+
 export interface Settings {
   mode: Mode;
   /** Master switch; when false the content script observes but never acts. */
@@ -122,6 +124,13 @@ export interface Settings {
   autoRedactNames: boolean;
   /** Minimum model confidence for a name to be redacted rather than shown. */
   nerAutoRedactMinScore: number;
+  /**
+   * Light or dark, for every surface we draw: popup, dashboard and the panels
+   * on the page. Deliberately a setting rather than `prefers-color-scheme`:
+   * the chat site has its own switch, and matching the OS would leave our
+   * panels bright white over a dark conversation.
+   */
+  theme: Theme;
 }
 
 /**

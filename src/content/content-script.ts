@@ -35,7 +35,7 @@ import {
   setWrappedCountHandler,
   repaintReveals,
 } from './rehydrate';
-import { showWriteFailure, showLeakWarning } from './ui/alerts';
+import { showWriteFailure } from './ui/alerts';
 import {
   showRevealToggle,
   hideRevealToggle,
@@ -47,7 +47,7 @@ import { showToast, dismissToast } from './ui/toast';
 import { showDiff, closeDiff } from './ui/diff';
 import { showBlockPanel } from './ui/cui-block';
 import { showChip, dismissChip } from './ui/chip';
-import { showReady } from './ui/ready';
+import { setOverlayAnchor, layoutDocks, setOverlayTheme } from './ui/shell';
 import { renderLive, hideLive, setNerState, setNerTiming, setLiveHandler } from './ui/live';
 import {
   renderHighlights,
@@ -60,6 +60,7 @@ import { applyConfirmations, isConfirmed, toggleConfirmed } from './confirmed';
 import { splitStable, hash } from '../worker/chunks';
 import { nerSpansToFindings } from '../worker/ner-map';
 import { buildUsageEvent } from '../worker/usage-event';
+import { leakedValues } from '../worker/audit';
 import { resolveOverlaps } from '../worker/detectors';
 
 const adapter = new ClaudeAdapter();
@@ -79,6 +80,7 @@ let settings: Settings = {
   nerEnabled: false,
   autoRedactNames: true,
   nerAutoRedactMinScore: 0.7,
+  theme: 'light',
 };
 
 
@@ -241,6 +243,11 @@ function applyRedactionAndSend(
     });
     void logUsage(text, scanMs, r.placeholders, false);
 
+    // Snapshot the page BEFORE the message lands. The audit compares against
+    // this, so a value already in the conversation from an earlier turn is
+    // not blamed on this send.
+    const pageBefore = document.body.innerText;
+
     gate.sendWithoutIntercepting();
 
     showToast({
@@ -254,7 +261,7 @@ function applyRedactionAndSend(
     // Belt and braces: read back what the page actually shows as sent and
     // check none of the real values survived. If one did, say so loudly --
     // a silent leak is far worse than an alarming banner.
-    auditSentMessage(r.placeholders);
+    auditSentMessage(r.placeholders, pageBefore);
   })();
 
   return 'hold';
@@ -267,18 +274,27 @@ function applyRedactionAndSend(
  * believed we had replaced. This cannot prevent a leak, only detect one,
  * but a detected leak is recoverable (delete the message, rotate the key)
  * and an undetected one is not.
+ *
+ * It judges the difference the send made, not the state of the page. Our own
+ * panels are invisible to it either way: they live in a closed shadow root,
+ * which innerText does not cross.
+ *
+ * It reports to the console only. The on-page warning was removed at the
+ * user's request, so a leak is now findable but not announced -- if this ever
+ * fires for real, nobody will see it unless DevTools is open.
  */
-function auditSentMessage(placeholders: Placeholder[]): void {
+function auditSentMessage(placeholders: Placeholder[], pageBefore: string): void {
   if (!placeholders.length) return;
   window.setTimeout(() => {
-    const body = document.body.innerText;
-    const leaked = placeholders.filter((p) => p.value.length > 3 && body.includes(p.value));
+    const leaked = leakedValues(pageBefore, document.body.innerText, placeholders);
     if (!leaked.length) {
       console.info(`[prompt-firewall] audit clean: ${placeholders.length} placeholder(s) held`);
       return;
     }
-    console.error('[prompt-firewall] AUDIT FAILED — unredacted values found on the page', leaked);
-    showLeakWarning(leaked);
+    console.error(
+      '[prompt-firewall] AUDIT FAILED — this send put unredacted values on the page',
+      leaked,
+    );
   }, 1200);
 }
 
@@ -636,16 +652,18 @@ function onPaste(e: ClipboardEvent): void {
 // ---------------------------------------------------------------------------
 
 async function boot(): Promise<void> {
-  // Attach and show the indicator BEFORE any await. If the service worker is
-  // slow to wake or messaging is broken, we still want a visible signal that
-  // the content script itself injected -- otherwise a messaging bug and a
-  // failed injection look identical from the page.
+  // Attach BEFORE any await: if the service worker is slow to wake or
+  // messaging is broken, the gate is still in place and the console line
+  // below still tells a developer the content script injected.
   gate.attach();
-  showReady('armed');
+  // Our panels sit beside this. The shell works out the visible frame around
+  // it, which is not an element any selector of ours should be guessing at.
+  setOverlayAnchor(() => adapter.getComposer());
 
   try {
     const res = await sendToBackground({ type: 'settings:get' });
     settings = res.settings;
+    setOverlayTheme(settings.theme);
   } catch (err) {
     console.warn('[prompt-firewall] settings unavailable, using defaults', err);
   }
@@ -661,6 +679,7 @@ async function boot(): Promise<void> {
     // Revealed values are drawn at viewport coordinates too, so they have
     // to track the text the same way the underlines do.
     repaintReveals();
+    layoutDocks();
   };
   // Settings are cached in this tab, so a change made on the options page
   // would otherwise not reach an already-open tab until it was reloaded.
@@ -671,6 +690,8 @@ async function boot(): Promise<void> {
     if (!next) return;
     settings = { ...settings, ...next };
     console.info('[prompt-firewall] settings updated', settings);
+    // Flipping the theme in the popup repaints the panels in this tab too.
+    setOverlayTheme(settings.theme);
     scheduleAdvisory(0);
   });
 
@@ -732,13 +753,14 @@ async function boot(): Promise<void> {
   // claude.ai is a single-page app, so the composer frequently does not
   // exist yet at document_idle, and it is replaced again on navigation
   // between conversations. Poll rather than assume: the gate itself resolves
-  // the composer lazily on every event, so this only drives the indicator.
+  // the composer lazily on every event, so this only logs it and re-anchors
+  // the docks to whatever the composer is now.
   let lastSeen: boolean | null = null;
   const pollComposer = (): void => {
     const found = adapter.getComposer() !== null;
+    layoutDocks();
     if (found !== lastSeen) {
       lastSeen = found;
-      showReady(found ? 'armed' : 'no-composer');
       console.info(
         `[prompt-firewall] composer ${found ? 'found' : 'NOT FOUND — selectors may be stale'}`,
       );

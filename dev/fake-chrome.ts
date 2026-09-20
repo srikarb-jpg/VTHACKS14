@@ -11,6 +11,7 @@ export interface FakeOptions {
   url?: string;
   enabled?: boolean;
   mode?: Settings['mode'];
+  theme?: Settings['theme'];
   events: UsageEvent[];
 }
 
@@ -23,6 +24,7 @@ export function installFakeChrome(opts: FakeOptions): void {
     nerEnabled: false,
     autoRedactNames: false,
     nerAutoRedactMinScore: 0.7,
+    theme: opts.theme ?? 'light',
   };
 
   const stub = {
