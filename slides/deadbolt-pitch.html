@@ -6,7 +6,7 @@
 <title>Deadbolt: pitch deck</title>
 <!-- Fonts: Bricolage Grotesque (display/body) + JetBrains Mono (labels) -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500&family=Special+Elite&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500&family=Special+Elite&family=Caveat:wght@600;700&family=Newsreader:wght@500;600&display=swap" rel="stylesheet">
 <style>
 /* ===========================================
    THEME: "Violet Night" (matches the extension UI)
@@ -286,6 +286,28 @@ p b, li b { color: var(--text); font-weight: 800; }
 .slide.visible .uline path { stroke-dashoffset: 0; }
 .callout { display: flex; align-items: center; gap: 24px; }
 .callout .mono { color: var(--spark); white-space: nowrap; }
+/* ===== ARCHITECTURE DIAGRAM (slide 4): rebuilt natively in the deck palette ===== */
+.dg { position: absolute; left: 140px; top: 262px; width: 1640px; height: 720px; }
+.dg > * { position: absolute; }
+.dg svg.arrows { left: 0; top: 0; width: 1640px; height: 720px; max-width: none; max-height: none; overflow: visible; pointer-events: none; }
+.dg-title { font-weight: 800; font-size: 32px; letter-spacing: -.01em; color: var(--text); white-space: nowrap; }
+.dg-box { border: 2px solid rgba(155,131,255,.55); border-radius: 22px; background: linear-gradient(160deg, #2c2560, #221d47); display: flex; align-items: center; justify-content: space-around; padding: 0 22px; }
+.dg-box.hokie { background: linear-gradient(160deg, #3a2a58, #2b2148); border-color: rgba(189,176,238,.5); }
+.dg-box.bar { background: linear-gradient(160deg, rgba(52,211,153,.16), rgba(52,211,153,.06)); border-color: rgba(52,211,153,.6); justify-content: center; }
+.dg-box.bar span { color: var(--spark); font-weight: 800; font-size: 25px; white-space: nowrap; }
+.dg-cell { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; }
+.dg-cell b { font-size: 27px; font-weight: 800; color: var(--text); line-height: 1.15; }
+.dg-cell small { font-size: 19px; font-weight: 600; color: var(--muted); line-height: 1.25; }
+.dg-lab { font-size: 21px; font-weight: 800; white-space: nowrap; }
+.dg-doc { width: 64px; height: 74px; background: #e9e5ff; border-radius: 8px; position: relative; }
+.dg-doc::before { content: ''; position: absolute; left: 12px; right: 12px; top: 14px; height: 4px; background: #9a93c9; box-shadow: 0 12px 0 #9a93c9; border-radius: 2px; }
+.dg-doc i { position: absolute; left: -10px; right: -10px; bottom: 6px; height: 24px; border-radius: 6px; font: 800 15px/24px var(--font-display); font-style: normal; text-align: center; color: #0d2b22; }
+.dg-doc.txt i { background: #7fe0bd; } .dg-doc.pdf i { background: #ffb547; }
+.dg-win { width: 118px; height: 88px; background: #f0eeff; border-radius: 10px; position: relative; color: #4a3aa8; font: 800 44px/100px var(--font-mono); text-align: center; }
+.dg-win::before { content: ''; position: absolute; left: 10px; top: 9px; width: 8px; height: 8px; border-radius: 50%; background: #ff7b6b; box-shadow: 14px 0 0 #ffc24d, 28px 0 0 #7fe0bd; }
+.dg-mono { font-family: var(--font-mono); font-weight: 500; color: var(--warn); }
+.dg-claude { display: flex; align-items: center; gap: 18px; }
+.dg-claude span { font-family: 'Newsreader', serif; font-weight: 500; font-size: 104px; letter-spacing: -.02em; color: #fff; line-height: 1; }
 .stack { display: flex; flex-direction: column; }
 .abs-bottom { position: absolute; left: 140px; right: 140px; bottom: 110px; }
 
@@ -360,22 +382,37 @@ body.editing [contenteditable] { outline: 2px dashed var(--spark); outline-offse
           <div class="what">Every org has its own sensitive formats, like contract numbers. Teach Deadbolt yours.</div><div class="lines"></div>
           <div class="src">Rules in plain English</div></div>
     <div class="hand" style="--i:3;left:150px;top:960px;font-size:62px;transform:rotate(-1.2deg)">Works as you type. Fixes what it's sure about.</div></section>
-<section class="slide "><div class="chrome mono"><span><b>●</b> Deadbolt</span><span>VT Hacks 14 &nbsp;·&nbsp; <span data-page></span></span></div><div class="pad" style="padding-top:190px">
-    <div class="eyebrow reveal">Why not cloud DLP</div>
-    <h2 class="reveal" style="--i:1;font-size:112px">Local, personal, <i>reversible</i>.</h2></div>
-    <div class="abs-bottom" style="bottom:90px"><table class="table"><tr><th></th><th>Cloud DLP</th><th class="us">Deadbolt</th></tr><tr class="reveal" style="--i:2"><td>Runs on</td><td>A third party's servers</td><td>Your device</td></tr><tr class="reveal" style="--i:3"><td>Deployed by</td><td>Org IT, months</td><td>You, in a minute</td></tr><tr class="reveal" style="--i:4"><td>On a hit</td><td>Block or log</td><td>Redact, restore locally</td></tr><tr class="reveal" style="--i:5"><td>Also asks</td><td>Nothing</td><td>Should this go out at all?</td></tr></table></div></section>
+<section class="slide "><div class="chrome mono"><span><b>●</b> Deadbolt</span><span>VT Hacks 14 &nbsp;·&nbsp; <span data-page></span></span></div><div class="pad" style="padding-top:170px"><div class="eyebrow reveal">How it works</div></div>
+    <div class="dg"><div class="dg-title reveal" style="left:0px;top:0px;--i:1">Inputs</div><div class="dg-box  reveal" style="left:0px;top:56px;width:262px;height:190px;--i:1"><div class="dg-cell"><div style="display:flex;gap:26px;margin-bottom:14px"><div class="dg-doc txt"><i>TXT</i></div><div class="dg-doc pdf"><i>PDF</i></div></div><b style="font-size:24px">Prompt · TXT ·<br>PDF · More</b></div></div><div class="dg-title reveal" style="left:330px;top:0px;--i:2">Local text extraction</div><div class="dg-box  reveal" style="left:330px;top:56px;width:640px;height:190px;--i:2"><div class="dg-cell"><div class="dg-win">{ }</div><b>Browser extension</b><small>Intercept send / upload</small></div><div class="dg-cell"><div class="dg-doc txt" style="margin-bottom:8px"><i>TEXT</i></div><b>PDF.js + text reader</b><small>PDF text + page positions</small></div></div><div class="dg-title reveal" style="left:1130px;top:0px;--i:3">HokieAI setup</div><div class="dg-box hokie reveal" style="left:1130px;top:56px;width:510px;height:190px;--i:3"><div class="dg-mono" style="font-size:52px;font-weight:800">{ JSON }</div><div class="dg-cell" style="gap:6px"><b style="font-size:30px">Policy Author</b><small style="font-size:20px">Fictional examples<br>→ custom patterns</small><small style="margin-top:6px">Manual copy / paste</small></div></div><div class="dg-title reveal" style="left:0px;top:318px;--i:4">Local privacy engine</div><div class="dg-box  reveal" style="left:0px;top:366px;width:970px;height:250px;--i:4"><div class="dg-cell"><div class="dg-mono" style="font-size:86px;font-weight:600;line-height:1">(.*)</div><b>Regex + document rules</b><small>IDs · contacts · resume context</small></div><div style="font-size:60px;font-weight:800;color:#fff;margin-top:-30px">+</div><div class="dg-cell"><svg width="150" height="120" viewBox="0 0 150 120" style="max-width:none"><g stroke="#8a70e6" stroke-width="2" fill="none"><path d="M20,20 L75,15 L130,25 M20,20 L60,60 L20,100 M75,15 L60,60 L110,60 L75,105 M130,25 L110,60 L130,95 M60,60 L75,105 M20,100 L75,105 L130,95 M20,20 L110,60"/></g><g stroke="none"><circle cx="20" cy="20" r="9" fill="#b9a5ff"/><circle cx="75" cy="15" r="9" fill="#b9a5ff"/><circle cx="130" cy="25" r="9" fill="#34d399"/><circle cx="60" cy="60" r="9" fill="#34d399"/><circle cx="110" cy="60" r="9" fill="#b9a5ff"/><circle cx="20" cy="100" r="9" fill="#b9a5ff"/><circle cx="75" cy="105" r="9" fill="#34d399"/><circle cx="130" cy="95" r="9" fill="#b9a5ff"/></g></svg><b>GLiNER</b><small>Optional local NER</small></div><div style="font-size:52px;color:#f0ecff;margin-top:-50px">⟶</div><div class="dg-cell"><img src="assets/lock.png" alt="" style="width:110px;max-width:none"><b>Redaction</b><small>Text → placeholders<br>PDF → precise visual blocks</small></div></div><div class="dg-title reveal" style="left:1130px;top:318px;--i:5">AI chat</div><div class="dg-box  reveal" style="left:1130px;top:366px;width:510px;height:250px;--i:5"><div class="dg-cell" style="gap:26px"><div class="dg-claude"><svg width="84" height="84" viewBox="-40 -40 80 80" style="max-width:none"><g stroke="#d97757" stroke-width="7" stroke-linecap="round"><line x1="0" y1="-11" x2="0" y2="-30" transform="rotate(0)"/><line x1="0" y1="-11" x2="0" y2="-30" transform="rotate(30)"/><line x1="0" y1="-11" x2="0" y2="-30" transform="rotate(60)"/><line x1="0" y1="-11" x2="0" y2="-30" transform="rotate(90)"/><line x1="0" y1="-11" x2="0" y2="-30" transform="rotate(120)"/><line x1="0" y1="-11" x2="0" y2="-30" transform="rotate(150)"/><line x1="0" y1="-11" x2="0" y2="-30" transform="rotate(180)"/><line x1="0" y1="-11" x2="0" y2="-30" transform="rotate(210)"/><line x1="0" y1="-11" x2="0" y2="-30" transform="rotate(240)"/><line x1="0" y1="-11" x2="0" y2="-30" transform="rotate(270)"/><line x1="0" y1="-11" x2="0" y2="-30" transform="rotate(300)"/><line x1="0" y1="-11" x2="0" y2="-30" transform="rotate(330)"/></g></svg><span>Claude</span></div><b style="font-size:28px">Processed prompt / attachment</b></div></div><div class="dg-box bar reveal" style="left:0px;top:646px;width:970px;height:72px;--i:6"><span>Local response display &nbsp;•&nbsp; Placeholder restoration &nbsp;•&nbsp; Usage dashboard</span></div><svg class="arrows" viewBox="0 0 1640 720">
+      <defs>
+        <marker id="ah" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#f0ecff"/></marker>
+        <marker id="ha" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#ffb547"/></marker>
+        <marker id="ga" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#34d399"/></marker>
+      </defs>
+      <g fill="none" stroke-width="3" class="reveal" style="--i:6">
+        <path d="M262,151 H322" stroke="#f0ecff" marker-end="url(#ah)"/>
+        <path d="M700,246 V306 H600 V360" stroke="#f0ecff" marker-end="url(#ah)"/>
+        <path d="M1300,246 V292 H880 V360" stroke="#ffb547" stroke-dasharray="10 8" marker-end="url(#ha)"/>
+        <path d="M972,491 H1124" stroke="#f0ecff" marker-end="url(#ah)"/>
+        <path d="M1385,616 V682 H976" stroke="#34d399" marker-end="url(#ga)"/>
+      </g></svg><div class="dg-lab reveal" style="left:970px;top:448px;width:160px;text-align:center;color:#f0ecff;--i:6">Send</div><div class="dg-lab reveal" style="left:1000px;top:252px;width:300px;text-align:center;color:#ffb547;--i:6">Validate + save locally</div><div class="dg-lab reveal" style="left:1130px;top:646px;width:200px;text-align:center;color:#34d399;--i:6">Response</div></div></section>
+<!-- === SLIDE 5 · MOTTO BEAT ===
+     Full-stage statement slide. No body copy, no cards: the brand promise alone.
+     Decoration reuses the deck vocabulary (dashed rings, ghosted lock, spark underline). -->
 <section class="slide "><div class="chrome mono"><span><b>●</b> Deadbolt</span><span>VT Hacks 14 &nbsp;·&nbsp; <span data-page></span></span></div><div class="ring" style="right:-160px;top:90px;width:900px;height:900px"></div>
   <div class="pad" style="display:flex;align-items:center">
     <h1 class="reveal" style="font-size:330px;line-height:.92">Project<br><i>Demo</i></h1>
   </div></section>
 <section class="slide "><div class="chrome mono"><span><b>●</b> Deadbolt</span><span>VT Hacks 14 &nbsp;·&nbsp; <span data-page></span></span></div>
-  <div class="ring" style="right:110px;top:150px;width:800px;height:800px"></div>
-  <img class="mascot" src="assets/lock.png" alt="" style="right:170px;top:200px;width:700px">
-  <div class="pad" style="padding-top:260px">
-    <h2 class="reveal" style="font-size:170px;line-height:.98;max-width:1000px">Think before<br><i>you send.</i></h2>
-    <p class="lead reveal" style="--i:2;max-width:1000px">Detection is never complete. We say so, and we show our work.</p>
-    <div class="chips reveal" style="--i:3;margin-top:60px"><span class="chip hot">Deadbolt</span><span class="chip">VT Hacks 14</span></div>
+  <div class="ring" style="left:-340px;bottom:-380px;width:1080px;height:1080px"></div>
+  <div class="ring" style="right:-220px;top:-300px;width:880px;height:880px;animation-direction:reverse;animation-duration:55s"></div>
+  <img class="mascot" src="assets/lock.png" alt="" style="right:90px;top:300px;width:520px;animation-duration:6s">
+  <div class="pad" style="display:flex;flex-direction:column;justify-content:center">
+    <div class="reveal" style="font-size:76px;font-weight:800;letter-spacing:-.04em;line-height:1;margin-bottom:64px">Dead<i style="font-style:normal;color:var(--spark)">bolt</i></div>
+    <h1 class="reveal" style="--i:2;font-size:196px;line-height:.92;align-self:flex-start">Type anything.</h1>
+    <h1 class="reveal" style="--i:4;font-size:196px;line-height:.92;align-self:flex-start;margin-top:14px;display:inline-block">Leak <i>nothing</i>.<svg class="uline" style="margin-top:18px" viewBox="0 0 400 26" preserveAspectRatio="none"><path pathLength="1" d="M4,16 C80,6 160,22 240,12 S360,10 396,14"/></svg></h1>
   </div></section>
+<!-- === SLIDE 6 · DEMO DIVIDER === -->
   </main>
 </div>
 <nav class="deck-controls" aria-label="Slide progress"></nav>

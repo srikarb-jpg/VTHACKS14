@@ -6,7 +6,7 @@
 <title>Hackathon slide template</title>
 <!-- Fonts: Bricolage Grotesque (display/body) + JetBrains Mono (labels) -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500&family=Special+Elite&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500&family=Special+Elite&family=Caveat:wght@600;700&family=Newsreader:wght@500;600&display=swap" rel="stylesheet">
 <style>
 /* ===========================================
    THEME: "Violet Night" (matches the extension UI)
@@ -286,6 +286,28 @@ p b, li b { color: var(--text); font-weight: 800; }
 .slide.visible .uline path { stroke-dashoffset: 0; }
 .callout { display: flex; align-items: center; gap: 24px; }
 .callout .mono { color: var(--spark); white-space: nowrap; }
+/* ===== ARCHITECTURE DIAGRAM (slide 4): rebuilt natively in the deck palette ===== */
+.dg { position: absolute; left: 140px; top: 262px; width: 1640px; height: 720px; }
+.dg > * { position: absolute; }
+.dg svg.arrows { left: 0; top: 0; width: 1640px; height: 720px; max-width: none; max-height: none; overflow: visible; pointer-events: none; }
+.dg-title { font-weight: 800; font-size: 32px; letter-spacing: -.01em; color: var(--text); white-space: nowrap; }
+.dg-box { border: 2px solid rgba(155,131,255,.55); border-radius: 22px; background: linear-gradient(160deg, #2c2560, #221d47); display: flex; align-items: center; justify-content: space-around; padding: 0 22px; }
+.dg-box.hokie { background: linear-gradient(160deg, #3a2a58, #2b2148); border-color: rgba(189,176,238,.5); }
+.dg-box.bar { background: linear-gradient(160deg, rgba(52,211,153,.16), rgba(52,211,153,.06)); border-color: rgba(52,211,153,.6); justify-content: center; }
+.dg-box.bar span { color: var(--spark); font-weight: 800; font-size: 25px; white-space: nowrap; }
+.dg-cell { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; }
+.dg-cell b { font-size: 27px; font-weight: 800; color: var(--text); line-height: 1.15; }
+.dg-cell small { font-size: 19px; font-weight: 600; color: var(--muted); line-height: 1.25; }
+.dg-lab { font-size: 21px; font-weight: 800; white-space: nowrap; }
+.dg-doc { width: 64px; height: 74px; background: #e9e5ff; border-radius: 8px; position: relative; }
+.dg-doc::before { content: ''; position: absolute; left: 12px; right: 12px; top: 14px; height: 4px; background: #9a93c9; box-shadow: 0 12px 0 #9a93c9; border-radius: 2px; }
+.dg-doc i { position: absolute; left: -10px; right: -10px; bottom: 6px; height: 24px; border-radius: 6px; font: 800 15px/24px var(--font-display); font-style: normal; text-align: center; color: #0d2b22; }
+.dg-doc.txt i { background: #7fe0bd; } .dg-doc.pdf i { background: #ffb547; }
+.dg-win { width: 118px; height: 88px; background: #f0eeff; border-radius: 10px; position: relative; color: #4a3aa8; font: 800 44px/100px var(--font-mono); text-align: center; }
+.dg-win::before { content: ''; position: absolute; left: 10px; top: 9px; width: 8px; height: 8px; border-radius: 50%; background: #ff7b6b; box-shadow: 14px 0 0 #ffc24d, 28px 0 0 #7fe0bd; }
+.dg-mono { font-family: var(--font-mono); font-weight: 500; color: var(--warn); }
+.dg-claude { display: flex; align-items: center; gap: 18px; }
+.dg-claude span { font-family: 'Newsreader', serif; font-weight: 500; font-size: 104px; letter-spacing: -.02em; color: #fff; line-height: 1; }
 .stack { display: flex; flex-direction: column; }
 .abs-bottom { position: absolute; left: 140px; right: 140px; bottom: 110px; }
 
