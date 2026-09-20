@@ -46,7 +46,7 @@ import { showDiff, closeDiff } from './ui/diff';
 import { showBlockPanel } from './ui/cui-block';
 // ui/chip.ts and ui/ready.ts are both gone -- the routing chip was cut with
 // the search lane, and the armed pill was removed from the page.
-import { setOverlayAnchor, layoutDocks, setOverlayTheme } from './ui/shell';
+import { setOverlayAnchor, layoutDocks, setOverlayTheme, syncYield } from './ui/shell';
 import { renderLive, hideLive, setNerState, setNerTiming, setLiveHandler } from './ui/live';
 import {
   renderHighlights,
@@ -686,7 +686,7 @@ async function boot(): Promise<void> {
         return await Promise.race([
           detectAttachmentNames(text, (texts) => sendToBackground({ type: 'ner:detect', texts, entities: ATTACHMENT_ENTITIES, threshold: 0.45 })),
           new Promise<never>((_, reject) => {
-            timer = setTimeout(() => reject(new Error('Name scan timed out. Upload blocked; try again.')), 30_000);
+            timer = setTimeout(() => reject(new Error('Name scan timed out.')), 30_000);
           }),
         ]);
       } finally { clearTimeout(timer); }
@@ -785,6 +785,7 @@ async function boot(): Promise<void> {
   const pollComposer = (): void => {
     const found = adapter.getComposer() !== null;
     layoutDocks();
+    syncYield();
     if (found !== lastSeen) {
       lastSeen = found;
       console.info(

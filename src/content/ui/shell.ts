@@ -14,6 +14,8 @@ const BASE_CSS = `
   * { box-sizing: border-box; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
   .layer { position: fixed; inset: 0; pointer-events: none; z-index: 2147483647; }
   .layer > * { pointer-events: auto; }
+  /* Passive UI steps aside for the page's own dialogs and pages. */
+  .layer.pf-yield .pf-dock, .layer.pf-yield [data-pf-passive] { visibility: hidden; }
 
   .card {
     background: #16181d; color: #e8eaed; border: 1px solid #2c3039;
@@ -257,7 +259,46 @@ export function getLayer(): HTMLDivElement {
   layer.className = 'layer';
   root.append(layer);
   document.body.append(host);
+  installYield();
   return layer;
+}
+
+/**
+ * Our docks and underlines are drawn above the whole page, so a dialog the site
+ * opens (settings, share, a confirm) would sit underneath them, and on a page
+ * with no composer at all they would just float there. Both hide until the
+ * page is back to a chat. Our own modals (diff, block panel) are not passive
+ * and are unaffected.
+ */
+let yielding = false;
+
+export function overlayYielding(): boolean { return yielding; }
+
+function pageDialogOpen(): boolean {
+  for (const node of document.querySelectorAll('dialog[open], [role="dialog"], [role="alertdialog"]')) {
+    if (node.getAttribute('data-state') === 'closed' || node.getAttribute('aria-hidden') === 'true') continue;
+    const style = getComputedStyle(node);
+    if (style.display === 'none' || style.visibility === 'hidden') continue;
+    const r = node.getBoundingClientRect();
+    if (r.width >= 240 && r.height >= 120) return true;
+  }
+  return false;
+}
+
+export function syncYield(): void {
+  const next = pageDialogOpen() || resolveAnchor() === null;
+  if (next === yielding) return;
+  yielding = next;
+  layer?.classList.toggle('pf-yield', next);
+}
+
+let yieldWatching = false;
+function installYield(): void {
+  if (yieldWatching) return;
+  yieldWatching = true;
+  // Sites mount dialogs as children of <body>, so a shallow observer sees them
+  // open and close without watching every mutation on the page.
+  new MutationObserver(() => syncYield()).observe(document.body, { childList: true });
 }
 
 /**
@@ -324,6 +365,7 @@ export function nudgeDocks(ms = 700): void {
   const step = (): void => {
     follow = 0;
     layoutDocks();
+    syncYield();
     if (performance.now() < followUntil) follow = requestAnimationFrame(step);
   };
   follow = requestAnimationFrame(step);

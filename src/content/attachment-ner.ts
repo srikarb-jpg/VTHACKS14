@@ -19,7 +19,7 @@ export async function detectAttachmentNames(
     if (start + 800 >= text.length) break;
   }
   const result = await detect(chunks.map((c) => c.text));
-  if (result.error || result.spans.length !== chunks.length) throw new Error('Name and institution scan unavailable. Upload blocked; try again.');
+  if (result.error || result.spans.length !== chunks.length) throw new Error('Name and institution scan unavailable.');
   const findings = chunks.flatMap((chunk, i) => nerSpansToFindings(result.spans[i]!, chunk.text)
     .filter((f) => ['person', 'organization', 'location'].includes(f.kind) && (f.score ?? 0) >= MIN_SCORE)
     .map((f) => ({ ...f, start: f.start + chunk.start, end: f.end + chunk.start, severity: 'medium' as const })));

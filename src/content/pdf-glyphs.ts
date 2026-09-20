@@ -18,8 +18,15 @@ export function collectGlyphRuns(
   let state: State = { font: '', size: 0, charSpace: 0, wordSpace: 0 };
   const stack: State[] = [];
   const runs: Run[] = [];
+  // PDF.js merges consecutive show-text calls on one line into a single text
+  // item, so adjacent calls in the same font extend one run until something
+  // repositions the text cursor.
+  const moves = new Set([ops.beginText, ops.endText, ops.moveText, ops.setLeadingMoveText, ops.setTextMatrix, ops.nextLine, ops.nextLineShowText, ops.nextLineSetSpacingShowText]);
+  let open: Run | undefined;
+  let cursor = 0;
   operations.fnArray.forEach((op, i) => {
     const args = operations.argsArray[i]!;
+    if (moves.has(op)) { open = undefined; return; }
     if (op === ops.save) { stack.push({ ...state }); return; }
     if (op === ops.restore) { state = stack.pop() ?? state; return; }
     if (op === ops.setFont) { state.font = String(args[0]); state.size = Number(args[1]); return; }
@@ -38,8 +45,8 @@ export function collectGlyphRuns(
     const font = getFont(state.font);
     if (!font || font.isType3Font || font.vertical || state.size <= 0) return;
     const advanceScale = state.size * (font.fontMatrix?.[0] ?? 0.001);
-    let x = 0;
-    const run: Run = { font: state.font, text: '', segments: [] };
+    const run: Run = open?.font === state.font ? open : { font: state.font, text: '', segments: [] };
+    let x = run === open ? cursor : 0;
     for (const glyph of args[0] as (Glyph | number)[]) {
       if (typeof glyph === 'number') { x -= glyph * state.size / 1000; continue; }
       const str = glyph.unicode.normalize('NFKC');
@@ -48,41 +55,68 @@ export function collectGlyphRuns(
       run.text += str;
       x += advance + state.charSpace + (glyph.isSpace ? state.wordSpace : 0);
     }
-    runs.push(run);
+    if (run !== open) runs.push(run);
+    open = run;
+    cursor = x;
   });
   return runs;
 }
 
+/** Non-whitespace characters only, each tagged with the segment it came from. */
+function compact(run: Run): { text: string; owner: number[] } {
+  let text = '';
+  const owner: number[] = [];
+  run.segments.forEach((seg, index) => {
+    for (const ch of run.text.slice(seg.start, seg.end)) {
+      if (/\s/.test(ch)) continue;
+      text += ch;
+      for (let k = 0; k < ch.length; k++) owner.push(index);
+    }
+  });
+  return { text, owner };
+}
+
 /** Bounds in PDF page units, relative to the text item's left edge.
- * Unmatched/ambiguous text is rejected instead of silently covering its row
- * or risking an incomplete redaction. Whole items need no glyph matching.
+ * PDF.js inserts spaces into item text wherever a gap looks like a word break
+ * (LaTeX writes no space glyphs at all), so matching ignores whitespace on
+ * both sides and maps back to real glyph segments.
+ * Unmatched/ambiguous text falls back to the whole text item rather than a
+ * guessed narrower box, so nothing sensitive can be left uncovered.
  */
 export function substringBounds(item: TextItem, start: number, end: number, runs: Run[]): { left: number; right: number } {
   if (start <= 0 && end >= item.str.length) return { left: 0, right: item.width };
+  const solid = (from: number, to: number) => item.str.slice(from, to).replace(/\s/g, '');
+  const needle = solid(0, item.str.length);
+  const before = solid(0, Math.max(0, start)).length;
+  const upTo = solid(0, Math.max(0, end)).length;
   const matches: { left: number; right: number }[] = [];
-  for (const run of runs) {
-    if (run.font !== item.fontName) continue;
-    let at = run.text.indexOf(item.str);
-    while (at >= 0) {
-      const segments = run.segments.filter((s) => s.start < at + item.str.length && s.end > at);
-      const first = segments[0];
-      const last = segments.at(-1);
-      // Do not cut an extracted item through a ligature's character mapping.
-      if (first?.start === at && last?.end === at + item.str.length && last.right > first.left) {
-        const selected = segments.filter((s) => s.start < at + end && s.end > at + start);
-        if (selected.length) {
+  if (needle && upTo > before) {
+    for (const run of runs) {
+      if (run.font !== item.fontName) continue;
+      const { text, owner } = compact(run);
+      let at = text.indexOf(needle);
+      while (at >= 0) {
+        const first = run.segments[owner[at]!];
+        const last = run.segments[owner[at + needle.length - 1]!];
+        // Do not cut an extracted item through a ligature's character mapping.
+        const clean = owner[at - 1] !== owner[at] && owner[at + needle.length] !== owner[at + needle.length - 1];
+        if (first && last && clean && last.right > first.left) {
+          const chosen = new Set(owner.slice(at + before, at + upTo));
+          const selected = run.segments.filter((_, k) => chosen.has(k));
           const scale = item.width / (last.right - first.left);
           const left = (Math.min(...selected.map((s) => s.left)) - first.left) * scale;
           const right = (Math.max(...selected.map((s) => s.right)) - first.left) * scale;
           if (Number.isFinite(left) && Number.isFinite(right) && right > left && left >= -0.5 && right <= item.width + 0.5) matches.push({ left, right });
         }
+        at = text.indexOf(needle, at + 1);
       }
-      at = run.text.indexOf(item.str, at + 1);
     }
   }
   const first = matches[0];
   if (!first || matches.some((m) => Math.abs(m.left - first.left) > 0.5 || Math.abs(m.right - first.right) > 0.5)) {
-    throw new Error('Precise PDF character positions could not be verified. Upload blocked.');
+    // Glyph positions could not be verified. The whole text item always
+    // contains the substring, so covering it is wider than needed, never narrower.
+    return { left: 0, right: item.width };
   }
   return { left: Math.min(...matches.map((m) => m.left)), right: Math.max(...matches.map((m) => m.right)) };
 }

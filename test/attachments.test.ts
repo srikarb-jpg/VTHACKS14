@@ -63,7 +63,9 @@ describe('attachment scrubbing', () => {
     await expect(scrubAttachment(file('a'.repeat(MAX_FILE_BYTES + 1)))).rejects.toThrow('100 KB');
     await expect(scrubAttachment(file('TOP SECRET'))).rejects.toThrow('Classification');
   });
-  it('does not release a file when the name detector fails', async () => {
-    await expect(scrubAttachment(file('hello'), async () => { throw new Error('unavailable'); })).rejects.toThrow('unavailable');
+  it('keeps going with pattern-based redaction when the name detector fails', async () => {
+    const result = await scrubAttachment(file('mail alice@example.com'), async () => { throw new Error('unavailable'); });
+    expect(await result.file.text()).not.toContain('alice@example.com');
+    expect(result.notices?.join(' ')).toMatch(/name and organization scan was unavailable/);
   });
 });

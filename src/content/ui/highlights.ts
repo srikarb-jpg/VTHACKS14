@@ -42,6 +42,7 @@ function ensureHost(): HTMLElement {
   // pointer-events:none so the layer as a whole never intercepts clicks,
   // typing or text selection. Individual bars opt back in below.
   host.style.cssText = 'position:absolute;inset:0;pointer-events:none;';
+  host.setAttribute('data-pf-passive', '');
   getLayer().append(host);
   return host;
 }

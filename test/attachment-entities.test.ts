@@ -79,7 +79,17 @@ describe('attachment identity coverage', () => {
   });
 
   it('blocks a failed or incomplete model response', async () => {
-    await expect(detectAttachmentNames('Example', async () => ({ error: 'failed', spans: [] }))).rejects.toThrow('Upload blocked');
-    await expect(detectAttachmentNames('Example', async () => ({ error: null, spans: [] }))).rejects.toThrow('Upload blocked');
+    await expect(detectAttachmentNames('Example', async () => ({ error: 'failed', spans: [] }))).rejects.toThrow('unavailable');
+    await expect(detectAttachmentNames('Example', async () => ({ error: null, spans: [] }))).rejects.toThrow('unavailable');
+  });
+  it('redacts City, ST without a ZIP but leaves words that only look like a state', () => {
+    const text = [
+      'Blacksburg, VA', 'Ford Motor Company, Dearborn, MI   May 2024 – Aug 2024', 'Intern, Ann Arbor, MI', 'Salt Lake City, UT | Remote',
+      'Languages: Java, OR Python and C', 'Contact me, IN writing', 'Springfield, MO 63005',
+    ].join('\n');
+    const values = detectAttachmentEntities(text).filter((f) => f.kind === 'location').map((f) => f.value);
+    expect(values).toEqual(expect.arrayContaining(['Blacksburg, VA', 'Dearborn, MI', 'Ann Arbor, MI', 'Salt Lake City, UT', 'Springfield, MO 63005']));
+    expect(values.filter((v) => /Java|Contact|Ford|Intern/.test(v))).toEqual([]);
+    expect(values.filter((v) => v.includes('Springfield'))).toHaveLength(1);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PDFDocument, StandardFonts, degrees } from 'pdf-lib';
+import { PDFDocument, StandardFonts, PDFOperator, PDFString, PDFNumber, degrees } from 'pdf-lib';
 import { getDocument, AnnotationMode } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { scrubAttachment } from '../src/content/attachments';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -76,20 +76,37 @@ describe('PDF visual redaction', () => {
     }
   }, 30_000);
 
-  it('blocks PDFs containing image content instead of copying unscanned pixels', async () => {
+  it('scans the text of a PDF that contains an image and says the image was not read', async () => {
     const doc = await PDFDocument.create();
     const page = doc.addPage();
-    page.drawText('This PDF has an image');
+    page.drawText('Mail alice@example.com about this image');
     const png = await doc.embedPng('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jY9kAAAAASUVORK5CYII=');
     page.drawImage(png, { x: 30, y: 30, width: 50, height: 50 });
-    await expect(scrubAttachment(new File([new Uint8Array(await doc.save())], 'image.pdf'))).rejects.toThrow('OCR');
+    const result = await scrubAttachment(new File([new Uint8Array(await doc.save())], 'image.pdf'));
+    expect(result.unscanned).toBeUndefined();
+    expect(result.placeholders.some((p) => p.value === 'alice@example.com')).toBe(true);
+    expect(result.notices?.join(' ')).toMatch(/image contents were not/);
   });
 
-  it('blocks classification markings and failed name scans in PDFs', async () => {
+  it('attaches a PDF that cannot be processed unchanged, with a notice, instead of blocking', async () => {
+    const junk = new File([new Uint8Array([37, 80, 68, 70, 45, 1, 2, 3])], 'broken.pdf');
+    const result = await scrubAttachment(junk);
+    expect(result.file).toBe(junk);
+    expect(result.unscanned).toBe(true);
+    expect(result.notices?.[0]).toMatch(/without scanning/);
+    const empty = await PDFDocument.create();
+    empty.addPage();
+    const blank = new File([new Uint8Array(await empty.save())], 'blank.pdf');
+    expect((await scrubAttachment(blank)).unscanned).toBe(true);
+  });
+
+  it('blocks classification markings in PDFs but not a failed name scan', async () => {
     const doc = await PDFDocument.create();
     doc.addPage().drawText('TOP SECRET');
     await expect(scrubAttachment(new File([new Uint8Array(await doc.save())], 'blocked.pdf'))).rejects.toThrow('Classification');
-    await expect(scrubAttachment(new File([await fixture()], 'names.pdf'), async () => { throw new Error('NER failed'); })).rejects.toThrow('Upload blocked');
+    const noNames = await scrubAttachment(new File([await fixture()], 'names.pdf'), async () => { throw new Error('NER failed'); });
+    expect(noNames.unscanned).toBeUndefined();
+    expect(noNames.notices?.join(' ')).toMatch(/name and organization scan/);
   });
 
   it('covers resume name, full locality and repeated schools in the actual PDF pixels without NER', async () => {
@@ -133,4 +150,85 @@ describe('PDF visual redaction', () => {
       } finally { await original.dispose(); }
     } finally { await rendered.dispose(); }
   }, 20_000);
+  it('redacts a value inside a line written as several show-text calls', async () => {
+    // Word, Docs and Chrome print this way; PDF.js reports it as one item.
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const page = doc.addPage([612, 792]);
+    const op = (name: string, ...args: (string | number)[]) =>
+      PDFOperator.of(name as never, args.map((a) => typeof a === 'string' ? PDFString.of(a) : PDFNumber.of(a)) as never);
+    page.pushOperators(
+      op('BT'),
+      PDFOperator.of('Tf' as never, [page.node.newFontDictionary(font.name, font.ref), PDFNumber.of(12)] as never),
+      op('Td', 72, 700),
+      op('Tj', 'Contact: '), op('Tj', 'alice@example.com'), op('Tj', ' today'),
+      op('ET'),
+    );
+    const original = new Uint8Array(await doc.save());
+    const result = await scrubAttachment(new File([original], 'a.pdf'), async () => []);
+    expect(result.file.type).toBe('application/pdf');
+    expect(result.placeholders.some((p) => p.value === 'alice@example.com')).toBe(true);
+    const before = await render(original);
+    const after = await render(new Uint8Array(await result.file.arrayBuffer()));
+    try {
+      const ink = (t: Awaited<ReturnType<typeof render>>, from: number, to: number) => {
+        const data = t.target.context.getImageData(Math.floor(from * 2), Math.floor((792 - 703) * 2), Math.ceil((to - from) * 2), 20).data;
+        return Array.from(data).filter((_, i) => i % 4 === 0 && data[i]! < 128).length;
+      };
+      const start = 72 + font.widthOfTextAtSize('Contact: ', 12);
+      const end = start + font.widthOfTextAtSize('alice@example.com', 12);
+      // Email region: text becomes a solid redaction block. Words either side keep their pixels.
+      expect(ink(after, start + 2, end - 2)).toBeGreaterThan(ink(before, start + 2, end - 2));
+      const label = [72, start - 4] as const;
+      expect(ink(after, ...label)).toBe(ink(before, ...label));
+    } finally { await before.dispose(); await after.dispose(); }
+  });
+  it('redacts values in a LaTeX-style TJ line that has no space glyphs', async () => {
+    // pdfTeX writes words with negative TJ gaps instead of spaces; PDF.js adds the spaces itself.
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.TimesRoman);
+    const page = doc.addPage([612, 792]);
+    const words = ['Reach', 'me', 'at', 'alice@example.com', 'or', '555-123-4567'];
+    const array = doc.context.obj(words.flatMap((w, i) => i ? [-333, w] : [w]).map((v) => typeof v === 'string' ? PDFString.of(v) : PDFNumber.of(v)));
+    page.pushOperators(
+      PDFOperator.of('BT' as never),
+      PDFOperator.of('Tf' as never, [page.node.newFontDictionary(font.name, font.ref), PDFNumber.of(12)] as never),
+      PDFOperator.of('Td' as never, [PDFNumber.of(72), PDFNumber.of(700)] as never),
+      PDFOperator.of('TJ' as never, [array] as never),
+      PDFOperator.of('ET' as never),
+    );
+    const original = new Uint8Array(await doc.save());
+    const result = await scrubAttachment(new File([original], 'latex.pdf'), async () => []);
+    expect(result.placeholders.map((p) => p.value).sort()).toEqual(['555-123-4567', 'alice@example.com']);
+    const before = await render(original);
+    const after = await render(new Uint8Array(await result.file.arrayBuffer()));
+    try {
+      const ink = (t: Awaited<ReturnType<typeof render>>, from: number, to: number) => {
+        const data = t.target.context.getImageData(Math.floor(from * 2), Math.floor((792 - 703) * 2), Math.ceil((to - from) * 2), 20).data;
+        return Array.from(data).filter((_, i) => i % 4 === 0 && data[i]! < 128).length;
+      };
+      const gap = 0.333 * 12;
+      const x = (n: number) => 72 + words.slice(0, n).reduce((sum, w) => sum + font.widthOfTextAtSize(w, 12) + gap, 0);
+      // "at" sits between the two redactions and must keep its pixels; the email is blocked out.
+      expect(ink(after, x(2) + 1, x(3) - gap - 1)).toBe(ink(before, x(2) + 1, x(3) - gap - 1));
+      expect(ink(after, x(3) + 2, x(4) - gap - 2)).toBeGreaterThan(ink(before, x(3) + 2, x(4) - gap - 2));
+    } finally { await before.dispose(); await after.dispose(); }
+  });
+  it('covers rotated sensitive text as a whole item instead of blocking', async () => {
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    doc.addPage([612, 792]).drawText('alice@example.com', { x: 200, y: 300, size: 14, font, rotate: degrees(30) });
+    const result = await scrubAttachment(new File([new Uint8Array(await doc.save())], 'tilted.pdf'), async () => []);
+    expect(result.unscanned).toBeUndefined();
+    expect(result.placeholders.some((p) => p.value === 'alice@example.com')).toBe(true);
+    const after = await render(new Uint8Array(await result.file.arrayBuffer()));
+    try {
+      const px = after.target.context.getImageData(0, 0, after.target.canvas.width, after.target.canvas.height).data;
+      let covered = 0;
+      for (let i = 0; i < px.length; i += 4) if (px[i] === 41 && px[i + 1] === 35 && px[i + 2] === 51) covered++;
+      expect(covered).toBeGreaterThan(500);
+      // Only the tilted text's box is covered, not the whole page.
+      expect(covered).toBeLessThan(px.length / 4 / 4);
+    } finally { await after.dispose(); }
+  });
 });

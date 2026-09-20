@@ -38,8 +38,16 @@ export function detectAttachmentEntities(text: string): Finding[] {
   }
   // Complete US locality line, including ZIP+4. The street detector alone
   // intentionally ends before this part of an address.
-  const locality = /\b[\p{Lu}][\p{L}'’.-]*(?:[ \t]+[\p{Lu}][\p{L}'’.-]*){0,4},[ \t]*(?:AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)[ \t]+\d{5}(?:-\d{4})?\b/gu;
+  const STATES = 'AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC';
+  const locality = new RegExp(String.raw`\b[\p{Lu}][\p{L}'’.-]*(?:[ \t]+[\p{Lu}][\p{L}'’.-]*){0,4},[ \t]*(?:${STATES})[ \t]+\d{5}(?:-\d{4})?\b`, 'gu');
   for (const m of text.matchAll(locality)) add(m.index, m.index + m[0].length, 'location', 'City, state and ZIP');
+  // "Dearborn, MI" without a ZIP is how resumes usually give a job or school
+  // location. Two-letter states collide with words (OR, IN, ME), so require
+  // a line end, separator, or date after it. Multi-word cities start with a
+  // known prefix so a job title before the city is not swallowed.
+  const CITY_PREFIX = 'New|San|Los|Las|Fort|Ft|Saint|St|Mount|Mt|Port|Santa|Salt|Ann|Des|El|Baton|Grand|Palm|Long|Cape|Lake|North|South|East|West|Kansas|Oklahoma|Little|Corpus|Colorado|Sioux|Green|Falls|Cedar|Chapel|Myrtle|Jersey|Rio|Boca|Rock|Panama|Overland|Bowling|Pearl|Silver|Virginia|Wilkes|Palo|Mountain|Newport|Huntington|Coral|Daly|Simi|Thousand|Rancho|Hilton|Cherry|Council|Iowa|Jefferson|Johnson|Michigan|Oak|Park|Sandy|Sun|West Palm|Winter|Chula|College|Grand|Lees|Fond|Eau|Coeur';
+  const cityState = new RegExp(String.raw`(?<![\p{L}\p{N}])(?:(?:${CITY_PREFIX})\.?[ \t]+(?:[\p{Lu}][\p{L}'’.-]*[ \t]+)?)?[\p{Lu}][\p{L}'’.-]*,[ \t]*(?:${STATES})(?![\p{L}\p{N}])(?=[ \t]*(?:$|[|•·–—,;.)\]/]|(?:19|20)\d\d\b|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b|Present\b|Current\b))`, 'gmu');
+  for (const m of text.matchAll(cityState)) add(m.index, m.index + m[0].length, 'location', 'City and state');
   const school = /\b(?:[\p{Lu}][\p{L}'’.-]*[ \t]+){1,6}(?:High School|Secondary School|University|College|Institute(?: of Technology)?|Polytechnic|Tech)\b(?:[ \t]+of[ \t]+[\p{Lu}][\p{L}'’.-]*(?:[ \t]+[\p{Lu}][\p{L}'’.-]*){0,3})?/gu;
   for (const m of text.matchAll(school)) {
     if (/^[ \t]+(?:Diploma|Degree|Courses)\b/i.test(text.slice(m.index + m[0].length))) continue;
