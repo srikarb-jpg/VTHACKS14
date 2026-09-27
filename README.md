@@ -7,6 +7,7 @@ carrying?
 Everything that decides runs locally. See [`prd.md`](./prd.md) for the full
 product argument.
 
+**Demo:**
 [![Deadbolt Demo](https://img.youtube.com/vi/d76uzoeIGIc/maxresdefault.jpg)](https://youtu.be/d76uzoeIGIc)
 
 ## Run it
